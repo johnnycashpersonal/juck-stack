@@ -5,8 +5,8 @@ __pycache__/
 
 # Explicitly not versioned because students
 # create these files (using the HOWTO documents)
-bitfield.py
-test_bitfield.py
+instruction_set/bitfield.py
+tests/test_bitfield.py
 
 # MacOS cruft
 .DS_Store
