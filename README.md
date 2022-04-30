@@ -10,8 +10,19 @@ language instructions are encoded as 32 bit integers.
 
 Students will work in two subfolders
 
-- instructions : The (binary) instruction encoding for Duck Machine processors
-- cpu : The CPU simulator
+- instruction_set : The (binary) instruction encoding for Duck 
+  Machine processors.  The instruction set definitions are provided
+  in `instr_format.py`, but you must write `bits.py` to support
+  definition and manipulation of the bit fields in instruction words. 
+- cpu : The CPU simulator.   This simulator operates similarly to a 
+  hardware CPU chip.  On each instruction cycle, it loads an 
+  instruction from memory, decodes it (again using bitfields), and
+  then executes it. 
+
+Further instructions are in [docs/HOWTO-bitfields.md](docs/HOWTO-bitfields.md)
+and [docs/HOWTO-cpu.md](docs/HOWTO-cpu.md).  A fuller description
+of the Duck Machine instruction set architecture (ISA) is in 
+[docs/Duck_Machine.md](docs/Duck_Machine.md).
 
 ## Project 2:  An assembler for Duck Machines
 
