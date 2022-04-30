@@ -1,38 +1,35 @@
 # Bit Fields HOWTO
 
-The binary machine code of the Duck Machine 2019 (DM2019)
-packs several fields into each instruction word, as does 
-any modern processor architecture.  One part of the processor,
-therefore, must *decode* instructions by unpacking those 
-fields into separate objects. 
+The binary machine code of the Duck Machine packs several fields into
+each instruction word, as does any modern processor architecture.  One
+part of the processor, therefore, must *decode* instructions by
+unpacking those fields into separate objects.
 
-DM2019 is a 32-bit computer architecture.  Each instruction
-word is a 32-bit integer, the registers are 32 bits wide, 
-and memory is addressed as a sequence of 32-bit words.  (All but the 
-last of these is typical; most modern computers address memory 
-as 8-bit bytes.) 
+DM2022 is a 32-bit computer architecture.  Each instruction word is a
+32-bit integer, the registers are 32 bits wide, and memory is
+addressed as a sequence of 32-bit words.  (All but the last of these
+is typical; most modern computers address memory as 8-bit bytes.)
 
 ## Parts
 
-As with any modern processor, the DM2019 CPU includes a component 
-for decoding instructions. This component makes use of some 
-circuitry for extracting each of the bit fields that make 
-up the internal representation of an instruction.  Our simulation
-will closely follow that hardware organization:  We will build 
-a module that extracts bit fields, and then an instruction 
-decoder that uses the bit field manipulator.  Then we will 
-build an arithmetic logic unit (ALU) that is controlled by 
-the operation code portion of an instruction.  The ALU 
-will be incorporated into a central processing unit (CPU) next week. 
+As with any modern processor, the DM2022 CPU includes a component for
+decoding instructions. This component makes use of some circuitry for
+extracting each of the bit fields that make up the internal
+representation of an instruction.  Our simulation will closely follow
+that hardware organization: We will build a module that extracts bit
+fields, and then an instruction decoder that uses the bit field
+manipulator.  Then we will build an arithmetic logic unit (ALU) that
+is controlled by the operation code portion of an instruction.  The
+ALU will be incorporated into a central processing unit (CPU) in the
+next part of this project.
 
 ## BitField objects
 
-Since we will be extracting the same bitfields over and over, 
-we will build one object for extracting each of the fields 
-we will want.  For example, suppose bits 5..7 represented 
-some field *spoons*.  (It doesn't, but pretend.)  Then we 
-would like to create an object that can extract just that 
-field: 
+Since we will be extracting the same bitfields over and over, we will
+build one object for extracting each of the fields we will want.  For
+example, suppose bits 5..7 represented some field *spoons*.  (It
+doesn't, but pretend.)  Then we would like to create an object that
+can extract just that field:
 
 ```python
 spoon_extractor = BitField(5,7)
@@ -86,7 +83,7 @@ than erasing or commenting out debug messages that
 might come in handy again later. 
 
 Some of the things we will do depend on the word size 
-of the DM2019, which is 32 bits.  We'll make a symbolic 
+of the DM2022, which is 32 bits.  We'll make a symbolic 
 constant for this so that it will be easier to adapt later 
 if Duck Machines Inc produces a 64-bit CPU model. 
 
@@ -158,14 +155,13 @@ Then the first part of the initialization is obvious:
         self.to_bit = to_bit
 ```
 
-Rather than create the mask value every time we extract
-a value, we want to compute it once in the constructor 
-and use it over and over.  We can create a mask of *n* 
-bits by repeatedly shifting it left 1 bit and 
- then filling the low-order bit with a 1.  The bitwise 
- *or* operation is represented by ```|``` in Python.   For example, 
-if we wanted to create a 5-bit mask, we could do it
-this way: 
+Rather than create the mask value every time we extract a value, we
+want to compute it once in the constructor and use it over and over.
+We can create a mask of *n* bits by repeatedly shifting it left 1 bit
+and then filling the low-order bit with a 1.  The bitwise *or*
+operation is represented by ```|``` in Python.  For example, if we
+wanted to create a 5-bit mask, we could do it this way:
+
 ```python
 mask = 0
 for i in range(5):
@@ -177,32 +173,73 @@ width of the field.  For example, if the field is bits 3 through 5,
 then field is 3 bits wide and would need a mask 
   of 0b111. A field from bit 5 to bit 5 would be
 one bit wide, and would need a mask of 0b1. Add code 
-to the BitField constructor to record a mask of the 
+to the BitField constructor to create a mask of the 
 right width depending on ```from_bit``` and ```to_bit```. 
+Save it as `self.mask`. 
+
+Note that even if we defined a three bit field in bit positions
+3..5, we would create a mask in bit positions 0..2 . 
 
 With the mask, we have enough to create the ```extract```
-method.  
-````python
+method.
+
+```python
     def extract(self, word: int) -> int:
         """Extract the bitfield and return it in the 
         low-order bits.  For example, if we are extracting
         bits 3..5, the result will be an 
         integer between 0 and 7 (0b000 to 0b111). 
         """
-````
+```
 
-You will need shift the word right with the ```>>``` operation, 
-mask it, and return the result.  It could be from one line
-to three lines of code, depending on how you organize it. 
+You will need shift the word right with the ```>>``` operation, mask
+it, and return the result.  It could be from one line to three lines
+of code, depending on how you organize it.
 
-With the constructor and extract method, we are ready to 
-write some simple test cases in ```test_bitfields.py```. 
+## Creating `test_bitfields`
+
+With the constructor and extract method, we are ready to write some
+simple test cases in ```test_bitfields.py```.  But we will approach
+this a little differently than we have in prior projects.  This time
+we are going to keep the test suites for each part of the multi-part
+project together in a `tests` directory, as recommended in [The
+Hitchikers Guide to
+Python](https://docs.python-guide.org/writing/structure/)
+
+![Tests in a sibling folder](img/sibling-folders.png)
+
+How will we import `bitfields.py` when it is in a different
+folder?   We'll tell Python explicitly where to look for it, 
+by starting the search in the top-level project directory
+and giving an explicit path to the folder we want.
+
+In Python file paths, as well as in Unix-derived operating
+systems including Linux and MacOS, ".." means "the directory 
+that encloses this directory", which we can think of as
+"one directory up".  We'll instruct Python to start its searches
+one directory "up" from the current file: 
+
+```python
+# Help Python find the module(s) we want to test,
+# telling it that search paths start one folder "up" in the hierarchy
+import sys, os
+this_folder = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(this_folder, "..")))
+```
+
+_Aside:_  I do not like manipulating the Python search
+path like this.  I think it's a smelly hack.  It
+appears to be a standard Python idiom, so we will live with it. 
+I hope  some future version of Python provides a cleaner approach. 
+
+Now that we have told Python how to search from the top-level
+project directory, we can make an `import` command that
+starts there and finds the `instruction_set` directory. 
 
 ```python
 """Unit tests for bitfield.py"""
-
-from bitfield import BitField
 import unittest
+from instruction_set.bitfield import BitField
 
 class Test_Extract(unittest.TestCase):
 
@@ -215,40 +252,53 @@ class Test_Extract(unittest.TestCase):
         """Extract 5 bits from the middle of a word"""
         middle_bits = BitField(5,9)
         self.assertEqual(middle_bits.extract(0b1010101101101011), 0b11011)
-
-
-if __name__ == "__main__":
-    unittest.main()
 ```
+
+
+
+If everything is working, we should now be able to
+execute the 
 
 ## Packing fields into words
 
 Well, that was easy!  (Unless it didn't work.)  What 
 else do we need? 
 
-Although the CPU does not pack bitfields together into a word, we're going 
-to need to do that a little later when we translate assembly code into DM2019
-instruction words (the machine language programs of the Duck Machine).  We might 
-as well take care of that now while the BitField class is fresh and familiar.  
+A[lthough the CPU does not pack bitfields together into a word, we're
+going to need to do that a little later when we translate assembly code
+into DM2022 instruction words (the machine language programs of the Duck
+Machine). We might as well take care of that now while the BitField
+class is fresh
+and familiar.
 
-We would like a method that takes a quantity and places it into the word.  Just 
-as we may use several bitfield objects to extract different fields from a word, 
-we would like to use a set of bitfield objects to create a word from the 
-individual fields.  The ```extract``` and ```insert``` methods will be complementary: 
-If we ```insert``` a value in bits m..n, the same bitfield object should be 
-capable of ```extract```ing the same value from the word into which we inserted it.
+We would like a method that takes a quantity and places it into the
+word. Just as we may use several bitfield objects to extract different
+fields from a word, we would like to use a set of bitfield objects to
+create a word from the individual fields. The ```extract```
+and ```insert``` methods
+will be complementary: If we ```insert``` a value in bits m..n, the same
+bitfield object should be capable of ```extract```ing the same value
+from the word into which we inserted it.
 
-Most of the time we will be starting with a word that is made up entirely of zero bits,
-and inserting non-overlapping fields.  It is convenient to assume that the bits into 
-which we wish to insert a value always start as zero.  Then we can simply shift 
- the value to be inserted into the right bit positions and use the bitwise 
- *or* operation (written ```|``` in Python) to place them into the word.  (If needed, we could write 
-a separate method to make them zero before we insert the new value, but usually 
-we won't need to.)  
+Most of the time we will be starting with a word that is made up
+entirely of zero bits,
+and inserting non-overlapping fields. It is convenient to assume that
+the bits into
+which we wish to insert a value always start as zero. Then we can simply
+shift
+the value to be inserted into the right bit positions and use the
+bitwise
+*or* operation (written ```|``` in Python) to place them into the
+word.  (If needed, we could write
+a separate method to make them zero before we insert the new value, but
+usually
+we won't need to.)
 
-As an example, suppose I wish to place the value 0b101 (decimal 5) into bits 3..5 of 
-variable ```result```.  I might previously have inserted the value 0b110 (decimal 6)
-into bits 0..2, so I have 
+As an example, suppose I wish to place the value 0b101 (decimal 5) into
+bits 3..5 of
+variable ```result```. I might previously have inserted the value
+0b110 (decimal 6)
+into bits 0..2, so I have
 
 ```python
 result = 0b110
@@ -350,6 +400,8 @@ def sign_extend(field: int, width: int) -> int:
     else:
         return field
 ```
+Note this is a separate function in `bitfield.py`, and _not_ 
+another method in `BitField`.
 
 We'd better test it.  We'll add ```sign_extension``` to the imported 
 identifiers in ```test_bitfields.py```, and then add: 
@@ -378,7 +430,7 @@ know they will always be positive. For example, if wanted to represent
 integers from 0 to 3, we would need three bits instead of two bits: 000, 001, 010, 011. 
 It is more efficient to treat such a field as "unsigned": 00, 01, 10, 11, treating 
 the high (leftmost) bit as part of the magnitude rather than a sign.  Most of the fields in in a the 
-DM2019 instruction word are unsigned.  So, we will 
+DM2022 instruction word are unsigned.  So, we will 
 leave our ```extract``` method as it is, and add a new method ```extract_signed```
 for the cases in which we want to consider the high bit as a sign. 
 
