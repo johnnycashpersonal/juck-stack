@@ -227,9 +227,17 @@ this_folder = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 sys.path.insert(0, os.path.abspath(os.path.join(this_folder, "..")))
 ```
 
+We could put this directly in the `test_bitfields` module, but
+instead I will put it in a separate `context.py` module, and import
+that into `test_bitfields` to trigger the modification of the 
+search path.  Because Python will load the context module just once
+no matter how many times it is references, putting a `context.py`
+module in each directory is a tricky workaround to allow us to set 
+the search path correctly regardless of where we start execution. 
+
 _Aside:_  I do not like manipulating the Python search
 path like this.  I think it's a smelly hack.  It
-appears to be a standard Python idiom, so we will live with it. 
+appears to be a standard Python idiom, so we will live with it.
 I hope  some future version of Python provides a cleaner approach. 
 
 Now that we have told Python how to search from the top-level
@@ -264,7 +272,7 @@ execute the
 Well, that was easy!  (Unless it didn't work.)  What 
 else do we need? 
 
-A[lthough the CPU does not pack bitfields together into a word, we're
+Although the CPU does not pack bitfields together into a word, we're
 going to need to do that a little later when we translate assembly code
 into DM2022 instruction words (the machine language programs of the Duck
 Machine). We might as well take care of that now while the BitField
