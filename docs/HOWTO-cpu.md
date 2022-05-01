@@ -1,22 +1,27 @@
 # Building the Virtual Duck Machine CPU
 
 In this project we will construct the simulated CPU of 
-the Duck Machine 2020W, which is identical to 
+the Duck Machine 2022, which is identical to 
 the Duck Machine model 2019W but comes in new 
-colors and is more expensive.  (Some documentation refers
-to earlier models.)  
-`duck_machine.md` describes 
-the processor. We will build two files: 
+colors and is more expensive.  
+(Some documentation may refer to earlier models.)  
+`duck_machine.md` describes the processor. We will build 
+two files: 
 
 * ```instr_format.py``` will contain definitions of the fields 
-in the DM2020W instruction word, and a class Instruction to hold 
+in the DM2022 instruction word, and a class Instruction to hold 
 a "decoded" instruction.  An `Instruction` object will simply 
 have a separate field (instance variable) for each of the fields 
-in a DM2020W instruction word, plus methods to convert between 
-words (integers) and `Instruction` objects. 
+in a DM2022 instruction word, plus methods to convert between 
+words (integers) and `Instruction` objects.  While the CPU
+decodes instructions, we will also need to encode them with the
+assembler we will build next week.  Since the assembler and CPU
+need consistent definitions of the instruction format,
+`instr_format.py` is in the separate `instruction_set` directory,
+along with the `BitField` class. 
 
 * ```cpu.py``` will be the central processing unit of the
-DM2020W.  It will define an `ALU` class for the arithmetic and logic unit, 
+DM2022.  It will define an `ALU` class for the arithmetic and logic unit, 
 and a CPU class for the processor of which the ALU is one part.  
 
 ## Other parts 
@@ -33,14 +38,22 @@ the Wikipedia article on memory-mapped IO explains, "One merit
  that port I/O brings, a CPU requires less internal logic and is 
  thus cheaper, faster, easier to build, consumes less power and 
  can be physically smaller."  The "easier to build" part is the 
- key reason the DM2020W uses memory-mapped IO. 
+ key reason the DM2022 uses memory-mapped IO. 
  
- * ```duck_machine.py``` is where we wire together the 
+* ```duck_machine.py``` is where we wire together the 
  CPU and memory and a graphical display.  
  
- In addition, we will need ```bitfield.py``` from last week. 
- Copy it into this project so that we can use it for decoding 
- instructions. 
+ We will import `instr_format` from the `instruction_set`
+ package using the
+same <del>smelly hack</del> Python search idiom we used
+for accessing `bitfield.py` from the `tests` directory. 
+Perhaps more surprisingly, we will also use this
+<del>smelly hack</del> idiom even for importing modules
+like `bitfields`
+in the same directory, so that the code will work whether
+we start execution in the current directory, the `tests` directory, 
+or the `run` directory where we will tie together different
+parts of the multi-week project. 
  
  ## Instruction format
  
@@ -51,9 +64,10 @@ the Wikipedia article on memory-mapped IO explains, "One merit
  
  ```python
 """
-Instruction format for the Duck Machine 2020W (DM2020W),
+Instruction format for the Duck Machine 2022 (DM2022),
 a simulated computer modeled loosely on the ARM processor
-found in many cell phones and the Raspberry Pi.
+found in many cell phones, the Raspberry Pi, and
+(with modifications) recent models of Apple Macintosh.
 
 Instruction words are unsigned 32-bit integers
 with the following fields (from high-order to low-order bits).  
@@ -64,15 +78,16 @@ See docs/duck_machine.md for details.
 """
 ```
 
-We will need the `BitField` class from last week to extract 
+We will need the `BitField` class to extract 
 the parts of an instruction word: 
 
 ```python
-from bitfield import BitField
+import context   # Search starting at project root
+from instruction_set.bitfield import BitField
 ``` 
 
 It is convenient to give names to the operation codes of the
-DM2020W using a Python *enum*.  For the condition codes, 
+DM2022 using a Python *enum*.  For the condition codes, 
 a special kind of *enum* called a *Flag* is useful, as we'll 
 discuss below: 
 
@@ -80,7 +95,7 @@ discuss below:
 from enum import Enum, Flag
 ```
  
-Defining the layout of the DM2020W instruction word is simple; 
+Defining the layout of the DM2022 instruction word is simple; 
 we just define a BitField object for each field: 
 
 ```python
@@ -102,16 +117,17 @@ field will actually be treated as a small array of bits.
 
 ### Operation Codes
 
-The DM2020W has a very small number of operation codes. 
+The DM2022 has a very small number of operation codes. 
 It is an extreme example of the *reduced instruction set 
 computing* (RISC) paradigm, of which the ARM chips are more 
 typical examples.  You probably have a RISC chip in your phone. 
 *Complex instruction set computing* (CISC) CPUs have a much larger 
-set of operation codes.  Your laptop probably contains a CPU 
-from Intel X86 family, which follows the CISC design.
+set of operation codes.  Your laptop might contain a CPU 
+from Intel X86 family, which follows the CISC design, although 
+recent Apple computers use RISC chips based on ARM. 
 
 We'll declare an enumeration to associate the names of the 
-DM2020W instruction codes with their internal representation 
+DM2022 instruction codes with their internal representation 
 as integers: 
 
 ```python
@@ -141,7 +157,7 @@ compatible chips.
 
 ### Condition Codes 
 
-DM2020W instructions are *predicated*.  This means that an 
+DM2022 instructions are *predicated*.  This means that an 
 instruction may be executed or skipped depending on what 
 happened in the prior instruction.  The CPU will contain 
 a *condition register* that records information about 
@@ -173,10 +189,19 @@ class CondFlag(Flag):
     ALWAYS = M | Z | P | V
 ```
 
-Note that the values we have chosen are powers of two, 
-which correspond to bit positions in the condition code. 
-The *M* (minus) flag is the low-order bit, the *Z* (zero) flag 
-is bit 1, *P* (positive) is bit 2, and *V* (overflow) is bit 3. 
+Note that the values we have chosen are powers of two. 
+This is no accident! They 
+correspond to bit positions in the condition code. 
+
+| Flag  | Decimal value   | 4-bit binary |
+| ------|-----------------|--------------|
+|M      | 1  = 2<sup>0</sup> | 0001 |
+|Z      | 2  = 2<sup>1</sup> | 0010 |
+|P      | 2  = 2<sup>2</sup> | 0100 | 
+|V      | 8 = 2<sup>3</sup>  | 1000 |
+|NEVER  | 0                  | 0000 |
+|ALWAYS | 15                 | 1111 |
+
 A single *CondFlag* object can include more than one of 
 these flag values using bitwise logical operations, e.g.,
  we can represent "non-negative result" 
@@ -211,15 +236,20 @@ a combnation of the *M*, *P*, and *V* flags.  We'll define a
         return "".join(bits)
 ``` 
 
-Let's begin a test suite for the CPU and write a couple 
-of test cases for the *CondFlag* class. 
+Let's begin a test suite for the machine language
+binary format and write a couple 
+of test cases for the *CondFlag* class. We will place
+this in the `tests` directory as before, and 
+reference the `instr_format` module as a path from
+the project root.  Call it `test_instr_format.py`. 
 
 ```python
-"""Test cases for the CPU, including
-some indvidual components and definitions.
+"""Test cases for the binary encoding of 
+instructions. 
 """
 
-from instr_format import *
+import context
+from instruction_set.instr_format import *
 import unittest
 
 class TestCondCodes(unittest.TestCase):
@@ -245,21 +275,21 @@ if __name__ == "__main__":
 
 ## Register names
 
-Three of the fields of a DM2020W instruction word specify
-*registers* to be used in the instruction.  The DM2020W 
-has 16 registers, which we call the *register file*. 
+Three of the fields of a DM2022 instruction word specify
+*registers* to be used in the instruction.  The DM2022 
+has 16 registers, which we call the *register file*.
 The *address* of a register is therefore a number from 
 0 to 15.  Two of them are special:  Register 0 will be a 
 special register that always holds zero, and register 15 
 will be the program counter.  The rest will be creatively 
 named r1, r2, r3, etc.  Instead of an enumeration, we'll 
 associate the register addresses with their names using 
-a dict: 
+a dict in `instr_format.py` called `NAMED_REGS`. 
 
 ```python
 # Registers are numbered from 0 to 15, and have names
 # like r3, r15, etc.  Two special registers have additional
-# names:  r0 is called 'zero' because on the DM2020W it always
+# names:  r0 is called 'zero' because on the DM2022 it always
 # holds value 0, and r15 is called 'pc' because it is used to
 # hold the program counter.
 #
@@ -311,14 +341,12 @@ look like an assembly language instruction:
     def __str__(self):
         """String representation looks something like assembly code"""
         if self.cond is CondFlag.ALWAYS:
-            cond_codes = ""
+            pred = ""
         else:
-            cond_codes = "/{}".format(self.cond)
+            pred = f"/{self.cond}"
 
-        return "{}{:4}  r{},r{},r{}[{}]".format(
-            self.op.name, cond_codes,
-            self.reg_target, self.reg_src1,
-            self.reg_src2, self.offset)
+        return (f"{self.op.name}{pred}   "
+             +  f"r{self.reg_target},r{self.reg_src1},r{self.reg_src2}[{self.offset}]")
 ```
 
 That's a rather complex format, so let's write a test case to 
@@ -328,19 +356,19 @@ in which flag letters appear and the number of spaces between
 the opcode and the first operand.)
 
 ```python
-class TestInstructionString(unittest.TestCase):
+cclass TestInstructionString(unittest.TestCase):
     """Check that we can print Instruction objects like assembly language"""
 
     def test_str_predicated_MUL(self):
         instr = Instruction(OpCode.MUL, CondFlag.P | CondFlag.Z,
                         NAMED_REGS["r1"], NAMED_REGS["r3"], NAMED_REGS["pc"], 42)
-        self.assertEqual(str(instr), "MUL/ZP   r1,r3,r15[42]")
+        self.assertEqual("MUL/ZP   r1,r3,r15[42]", str(instr))
 
     def test_str_always_ADD(self):
         """Predication is not printed for the common value of ALWAYS"""
         instr = Instruction(OpCode.ADD, CondFlag.ALWAYS,
                             NAMED_REGS["zero"], NAMED_REGS["pc"], NAMED_REGS["r15"], 0)
-        self.assertEqual(str(instr), "ADD      r0,r15,r15[0]")
+        self.assertEqual("ADD   r0,r15,r15[0]", str(instr))
 ```
 
 ## Decoding instructions
@@ -366,14 +394,17 @@ The logic of this function is straightforward:  Use the
 BitField objects defined before (`instr_field`, `reg_target_field`, etc.) 
 to extract each of the fields from ```word```, construct 
 a single `Instruction` object from those fields, and return 
-the `Instruction` object. 
+the `Instruction` object.  To convert an integer code `n`
+for an operation code into the corresponding 
+`OpCode` enum value, you can write `OpCode(n)`, and 
+similarly for condition codes. 
 
 How can we test the instruction decoding?  It would help to 
 have the inverse operation, a way of converting an `Instruction` 
 object into a single instruction word (an integer).  That could be
 useful later for building an assembler also, so we might as well 
 build it now.  We'll add a method to the `Instruction` class to 
-perform the conversion: 
+perform the conversion.  To convert an OpCode value `v` like `OpCode.ADD` to its integer value, write `v.value`.  
 
 ```python
     def encode(self) -> int:
@@ -398,6 +429,10 @@ class TestDecode(unittest.TestCase):
         self.assertEqual(text, str(instr))
 ```
 
+Remember that the offset field is signed!   If your test case gives you a large integer value like 1012 instead of the 
+expected value -12, it's probably because you forgot to use
+`extract_signed` in place of `extract`. 
+
 ## Building the CPU
 
 Now that we have an instruction decoder, we can start 
@@ -405,7 +440,7 @@ constructing the CPU.  We'll keep it in ```cpu.py```:
 
 ```python
 """
-Duck Machine model DM2020W CPU
+Duck Machine model DM2022 CPU
 """
 
 from instr_format import Instruction, OpCode, CondFlag, decode
@@ -704,7 +739,7 @@ are blank lines, comment lines, and debugging statements
 While I'd like to have some nice stand-alone test cases for 
 the ```step``` method, they are difficult to set up because 
 they involve the complete state of the CPU and memory.  We'll 
-be able to test very shortly by executing DM2020W programs. 
+be able to test very shortly by executing DM2022 programs. 
    
 ### Run
 
