@@ -1,11 +1,10 @@
 """
 Graphical display of the duck machine state. 
 """
-
-from mvc import MVCEvent
-from cpu import CPU, CPUStep
+import context   # Import paths are relative to project root
+from cpu.mvc import MVCEvent
+from cpu.cpu import  import CPU, CPUStep
 from memory import MemoryEvent, MemoryRead, MemoryWrite
-from memory import Memory
 
 import graphics.graphics
 from graphics.graphics import GraphWin, Rectangle, Point, Text

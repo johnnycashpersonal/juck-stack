@@ -28,7 +28,7 @@ and a CPU class for the processor of which the ALU is one part.
 
 Some other parts of the Duck Machine are provided for you.  
 
-* ```memory.py``` defines the `Memory` class (which is essentially an
+* `memory.py` defines the `Memory` class (which is essentially an
 array of integers, like a Python list), and `MemoryMappedIO`. 
 `MemoryMappedIO` is like a normal Memory (in fact it is a 
 subclass of `Memory`), except it interprets 
@@ -40,7 +40,7 @@ the Wikipedia article on memory-mapped IO explains, "One merit
  can be physically smaller."  The "easier to build" part is the 
  key reason the DM2022 uses memory-mapped IO. 
  
-* ```duck_machine.py``` is where we wire together the 
+* `duck_machine.py` is where we wire together the 
  CPU and memory and a graphical display.  
  
  We will import `instr_format` from the `instruction_set`
@@ -101,7 +101,7 @@ we just define a BitField object for each field:
 ```python
 # The field bit positions
 reserved = BitField(31,31)
-instr_field = BitField(26, 30)
+op_field = BitField(26, 30)
 cond_field = BitField(22, 25)
 reg_target_field = BitField(18, 21)
 reg_src1_field = BitField(14, 17)
@@ -379,7 +379,7 @@ first convert it into an *Instruction* object.  That is
 called the *decode* step of the *fetch/decode/execute* cycle
 that the CPU performs over and over and over.   Now you 
 have all the pieces in place.  I leave to you implementation 
-of the ```decode``` function (not a method) that converts 
+of the `decode` function (not a method) that converts 
 an integer into an *Instruction* object: 
 
 ```python
@@ -391,8 +391,8 @@ def decode(word: int) -> Instruction:
 ```
 
 The logic of this function is straightforward:  Use the 
-BitField objects defined before (`instr_field`, `reg_target_field`, etc.) 
-to extract each of the fields from ```word```, construct 
+BitField objects defined before (`op_field`, `reg_target_field`, etc.) 
+to extract each of the fields from `word`, construct 
 a single `Instruction` object from those fields, and return 
 the `Instruction` object.  To convert an integer code `n`
 for an operation code into the corresponding 
@@ -436,15 +436,16 @@ expected value -12, it's probably because you forgot to use
 ## Building the CPU
 
 Now that we have an instruction decoder, we can start 
-constructing the CPU.  We'll keep it in ```cpu.py```: 
+constructing the CPU.  We'll keep it in `cpu.py` in the 
+`cpu` directory: 
 
 ```python
 """
 Duck Machine model DM2022 CPU
 """
 
-from instr_format import Instruction, OpCode, CondFlag, decode
-from typing import Tuple
+import context  #  Python import search from project root
+from instruction_set.instr_format import Instruction, OpCode, CondFlag, decode
 ```
 
 The CPU will need to use a `Memory` and `Register`s from 
@@ -452,9 +453,9 @@ modules that I have provided, as well as model-view-controller
 components for displaying the CPU state. 
 
 ```python
-from memory import Memory
-from register import Register, ZeroRegister
-from mvc import MVCEvent, MVCListenable
+from cpu.memory import Memory
+from cpu.register import Register, ZeroRegister
+from cpu.mvc import MVCEvent, MVCListenable
 ```
 
 For debugging we may want to log some events, so we'll 
@@ -499,33 +500,37 @@ class ALU(object):
 I have left a few opcodes for you to fill in. They are 
 very simple! 
 
-Execution of operation is slightly more complicated.  We 
+Execution of each operation is slightly more complicated.  We 
 need to return *two* things:  Not only the result (e.g., 
 the sum of the two operands if the operation code is 
-```OpCode.PLUS``), but also the resulting condition code. 
+`OpCode.PLUS`), but also the resulting condition code. 
 
 ```python
-    def exec(self, op: OpCode, in1: int, in2: int) -> Tuple[int, CondFlag]:
+    def exec(self, op: OpCode, in1: int, in2: int) -> tuple[int, CondFlag]:
 ```
 
-```exec``` will simply look up ```op``` in the ```ALU_OPS``` 
+`exec` will simply look up `op` in the `ALU_OPS` 
 table and apply the corresponding function.  We'll wrap it in a 
-try/except, return the tuple ```(0, CondFlag.V)``` if there 
+try/except, return the tuple `(0, CondFlag.V)` if there 
 is an exception (e.g., division by zero).  If the 
-operation does not fail, then ```exec``` must choose 
-one of the other condition flags: ```CondFlag.Z``` if the 
-result is zero, ```CondFlag.M``` if the result is negative, 
-or ```CondFlag.P``` if the result is positive.   I leave that to
+operation does not fail, then `exec` must choose 
+one of the other condition flags: `CondFlag.Z` if the 
+result is zero, `CondFlag.M` if the result is negative, 
+or `CondFlag.P` if the result is positive.   I leave that to
 you. 
 
 Although the *ALU* class is fairly simple, we should at least
 test to see that it is returning the results we expect, 
 including condition codes. 
-We will add test cases for ```cpu.py``` to ```test_cpu.py```, 
-adding an import statement: 
+We will create a new module `test_cpu.py` for test cases
+for `cpu.py`.  Again we will put it in the `tests` directory, 
+and start it with an import statement to import `cpu.py` 
+from the `cpu` directory: 
 
 ```python
-from cpu import * 
+import context
+from cpu.cpu import *
+import unittest
 ```
 
 Then we can add a simple smoke test for the ```ALU```: 
@@ -560,6 +565,14 @@ class TestALU(unittest.TestCase):
         self.assertEqual(alu.exec(OpCode.LOAD, 12, 13), (25, CondFlag.P))
         self.assertEqual(alu.exec(OpCode.STORE, 27, 13), (40, CondFlag.P))
         self.assertEqual(alu.exec(OpCode.HALT, 99, 98), (0, CondFlag.Z))
+```
+
+As usual with a test module, we want to make it executable
+as a standalone program that runs all the test cases: 
+
+```python
+if __name__ == "__main__":
+    unittest.main()
 ```
 
 ## The CPU Itself
