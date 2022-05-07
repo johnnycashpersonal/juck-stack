@@ -159,7 +159,7 @@ compatible chips.
 
 DM2022 instructions are *predicated*.  This means that an 
 instruction may be executed or skipped depending on what 
-happened in the prior instruction.  The CPU will contain 
+happened in the prior instruction.  The CPU contains 
 a *condition register* that records information about 
 the result of the prior ALU operation:  Was it zero, positive, 
 negative, or an "overflow" (e.g., division by zero).  
@@ -310,9 +310,9 @@ A *decoded instruction* holds each of the parts of an
 instruction word in a separate field: 
 
 ```python
-# A complete DM2018S instruction word, in its decoded form.  In DM2018S
+# A complete DM2022 instruction word, in its decoded form.  In 
 # memory an instruction is just an int.  Before executing an instruction,
-# we decoded it into an Instruction object so that we can more easily
+# we decode it into an Instruction object so that we can more easily
 # interpret its fields.
 #
 class Instruction(object):
@@ -610,9 +610,9 @@ class CPU(MVCListenable):
 ``` 
 
 Memory is not part of the CPU, but the CPU communicates with a memory unit 
-over a bus.  In ```duck_machine.py``` the memory unit is created and then 
-passed to the constructor of class ```CPU``` to set up that communication. 
-(It's actually a ```MemoryMappedIO```, but the CPU treats it as a regular
+over a bus.  In `duck_machine.py` the memory unit is created and then 
+passed to the constructor of class `CPU` to set up that communication. 
+(It's actually a `MemoryMappedIO`, but the CPU treats it as a regular
 memory.  The CPU doesn't know about input/output!)
 
 ```python
@@ -622,7 +622,7 @@ memory.  The CPU doesn't know about input/output!)
 ```
 The CPU also needs 16 registers, one of which is the special *zero* register that 
 always holds zero.  We could create them in a loop, but 16 is a pretty small number ... 
-we can just create the ```Register``` objects in a list literal: 
+we can just create the `Register` objects in a list literal: 
 
 ```python
         self.registers = [ ZeroRegister(), Register(), Register(), Register(),
@@ -657,26 +657,27 @@ one fetch/decode/execute cycle.
 
 ```python
    def step(self):
+        """One fetch/decode/execute step"""
 ```
 
 The fetch phase of the cycle reads an instruction word 
 from memory.  The decode phase, as you might surmise, decodes the instruction word 
-into an ```Instruction``` object.  The execute phase then does whatever that instruction 
+into an `Instruction` object.  The execute phase then does whatever that instruction 
 calls for. 
 
 
 ### Fetch
 
-To fetch an instruction, first we get the address from register 15, using the ```get``` method of the 
-```Register``` class.  Then we use that address to read the instruction word from memory, 
-using the ```get``` method of the ```Memory``` class.   I'll leave that to you. 
+To fetch an instruction, first we get the address from register 15, using the `get` method of the 
+`Register` class.  Then we use that address to read the instruction word from memory, 
+using the `get` method of the `Memory` class.   I'll leave that to you. 
 
 ### Decode
 
 You've already done the hard work of decoding, mostly last week.  Just call the 
-```decode``` function you wrote earlier to get an *Instruction* object.  If your 
-*fetch* phase left the instruction address in  ```instr_addr``` and the instruction 
-word in ```instr_word```, your *decode* phase could look like this: 
+`decode` function you wrote earlier to get an *Instruction* object.  If your 
+*fetch* phase left the instruction address in  `instr_addr` and the instruction 
+word in `instr_word`, your *decode* phase could look like this: 
 
 ```python
         # Decode
@@ -696,8 +697,8 @@ to display instruction in progress:
 
 The execution phase must be carefully sequenced.
 * First we check the instruction predicate.  We use 
-a bitwise *and* (```&```) between the CPU condition code and 
-the ```condition``` field of the instruction.   What 
+a bitwise *and* (`&`) between the CPU condition code and 
+the `condition` field of the instruction.   What 
 happens next depends on whether the result is positive (meaning 
 at least one of the condition bits that are 1 in the 
 instruction predicate is true of the CPU condition) or 0 
@@ -708,15 +709,15 @@ bits in the instruction).  We'll say the condition is
    * If the result of 
    the bitwise *and* is positive, we perform the specified 
    operation.  The left operand will be the contents 
-   of the register specified by ```instr.src1```; we 
-   call the ```get``` method on that register to obtain 
+   of the register specified by `instr.src1`; we 
+   call the `get` method on that register to obtain 
    its value.   The right operand will be the sum of 
-   the ```instr.offset``` field and the contents of 
-   the register specified by ```instr.src2```.  
+   the `instr.offset` field and the contents of 
+   the register specified by `instr.src2`.  
    
    * We calculate a result value and new condition code 
-   by calling the ALU ```exec``` method, giving it 
-   ```instr.opcode``` and the two operand values. 
+   by calling the ALU `exec` method, giving it 
+   `instr.opcode` and the two operand values. 
    
    * *BEFORE* we save the result value and instruction 
    code, we increment the program counter (register 15). 
@@ -725,39 +726,39 @@ bits in the instruction).  We'll say the condition is
    complete the operation.  
       * If the operation was STORE, we use the result 
       of the calculation as a memory address, and save the 
-      value of the register specified by ```instr.target```
+      value of the register specified by `instr.reg_target`
       to that location in memory. 
       * If the operation was LOAD, we use use the result 
       of the calculation as a memory address, and fetch 
       the value of that location in memory, storing 
-      it in the register specified by ```instr.target```. 
+      it in the register specified by `instr.reg_target`. 
       * If the operation was HALT, we set the halt 
-      flag (```self.halted```) to ```True```. 
+      flag (`self.halted`) to `True`. 
       * For the other operations (ADD, SUB, MUL, DIV) we 
       store the result of the calculation in the register 
-      specified by ```instr.target``` and store the 
-      new condition code in the ```condition``` field of 
+      specified by `instr.reg_target` and store the 
+      new condition code in the `condition` field of 
       the CPU. 
    
    * Otherwise, if the predicate was not satisfied, 
    we skip most of those steps and just increment register 15. 
    
-I will leave implementation of ```execute``` to you.  Try to 
+I will leave implementation of `execute` to you.  Try to 
 figure it out, but then ask questions if you have trouble. 
-To give you a rough idea of what to expect, my ```step``` method
+To give you a rough idea of what to expect, my `step` method
 implementation is about 40 lines, and about half of those 
 are blank lines, comment lines, and debugging statements 
-(calls to ```log.debug("your message here")```).  
+(calls to `log.debug("your message here")`).  
 
 While I'd like to have some nice stand-alone test cases for 
-the ```step``` method, they are difficult to set up because 
+the `step` method, they are difficult to set up because 
 they involve the complete state of the CPU and memory.  We'll 
 be able to test very shortly by executing DM2022 programs. 
    
 ### Run
 
-The ```run``` method is just a loop that executes the 
-fetch/decode/execute cycle of ```step``` over and over again. 
+The `run` method is just a loop that executes the 
+fetch/decode/execute cycle of `step` over and over again. 
 We can use an optional argument for single-stepping the 
 CPU, which is sometimes useful in debugging. 
 I'll provide this method so that we can get on with testing: 
@@ -765,11 +766,11 @@ I'll provide this method so that we can get on with testing:
 ```python
     def run(self, from_addr=0,  single_step=False) -> None:
         self.halted = False
-        self.pc.put(from_addr)
+        self.registers[15].put(from_addr)
         step_count = 0
         while not self.halted:
             if single_step:
-                input("Step {}; press enter".format(step_count))
+                input(f"Step {step_count}; press enter")
             self.step()
             step_count += 1
 ```
@@ -778,8 +779,8 @@ I'll provide this method so that we can get on with testing:
 
 At this point, we should have a full working Duck Machine.  
 Instead of unit tests, we can test it by running programs. 
-```duck_machine.py``` can be run from the command line. 
-```programs/max.obj``` is a good test. 
+`duck_machine.py` can be run from the command line. 
+`programs/max.obj` is a good test. 
 
 ```
 $ python3 duck_machine.py programs/max.obj 

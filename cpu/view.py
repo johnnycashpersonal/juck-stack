@@ -3,16 +3,15 @@ Graphical display of the duck machine state.
 """
 import context   # Import paths are relative to project root
 from cpu.mvc import MVCEvent
-from cpu.cpu import  import CPU, CPUStep
-from memory import MemoryEvent, MemoryRead, MemoryWrite
+from cpu.cpu import CPU, CPUStep
+from cpu.memory import MemoryEvent, MemoryRead, MemoryWrite
 
-import graphics.graphics
-from graphics.graphics import GraphWin, Rectangle, Point, Text
+from graphics.graphics import Rectangle, Point, Text, GraphWin
 
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 class MachineStateView(object):
     """View of the CPU and memory state"""
@@ -20,13 +19,16 @@ class MachineStateView(object):
     def __init__(self, model: CPU,
                      width: int, height: int):
         """Create a view width x height"""
+        log.debug(f"Creating MachineStateView")
         self.width = width
         self.height = height
         self.model = model
+        log.debug("Registering listeners")
         model.register_listener(self)
         model.memory.register_listener(self)
 
-        self.window = graphics.graphics.GraphWin("Duck Machine", width, height)
+        log.debug("Creating GraphWin to display machine state")
+        self.window = GraphWin("Duck Machine", width, height)
 
         # CPU in left 1/3 of window
         cpu_region = Rectangle(Point(5,5),
@@ -47,6 +49,7 @@ class MachineStateView(object):
         self._draw_instruction(instr_word_display)
 
         # Memory in right 2/3 of window
+        log.debug("Drawing the computer memory")
         self._draw_memory()
 
     def _draw_instruction(self, in_rect):
@@ -70,10 +73,9 @@ class MachineStateView(object):
         self.reg_region = (reg_region_x_min, reg_region_y_min,
                            reg_region_x_max, reg_region_y_max)
 
-        log.debug("Registers will display from {},{} to {},{}"
-                  .format(reg_region_x_min,reg_region_y_min,
-                          reg_region_x_max, reg_region_y_max))
-
+        log.debug(f"Registers will display from "
+                  f"{reg_region_x_min},{reg_region_y_min}"
+                  f" to {reg_region_x_max},{reg_region_y_max}")
 
         for reg_pair in range(8):
             self._draw_reg(reg_pair, 0)
@@ -95,9 +97,10 @@ class MachineStateView(object):
         label.draw(self.window)
         reg_display.label = label
         self.registers.append(reg_display)
-        log.debug("Displayed register {} at {}".format(row*2 + col, reg_display))
+        log.debug(f"Displayed register {row*2 + col} at {reg_display}")
 
     def _draw_memory(self):
+        log.debug("Drawing memory")
         mem_region_y_min = 5
         mem_region_y_max = self.height - 5
         mem_region_x_min = 0.3 * self.width + 5
@@ -131,10 +134,13 @@ class MachineStateView(object):
 
     def notify(self, event: MVCEvent):
         """Something to depict"""
+        log.debug(f"Notified of event {event}")
         if isinstance(event, CPUStep):
             self._cpu_step(event)
         elif isinstance(event, MemoryEvent):
             self._memory_event(event)
+        else:
+            log.debug(f"Ignoring unknown event kind {event}")
 
     def _cpu_step(self, event: CPUStep):
         self.instr_raw.setText(str(event.instr_word))
@@ -147,7 +153,7 @@ class MachineStateView(object):
 
     def _memory_event(self, event):
         """Memory was accessed"""
-        log.debug("Memory event: {}".format(event))
+        log.debug(f"Memory event: {event}")
         memory = event.subject
         address = event.addr
         value = event.value
