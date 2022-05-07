@@ -18,7 +18,7 @@ import io
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 
 def cli() -> object:
@@ -40,11 +40,11 @@ def load(file: io.IOBase, memory: Memory) -> None:
         word = int(line)
         log.debug(f"Instruction value {word}")
         memory.put(addr, word)
-        log.debug(f"Loaded address {addr} <- {word}")
+        log.debug(f"Loaded {word} from address {addr} ")
         addr += 1
 
 def duck_output(addr: int, value: int) -> None:
-    print("Quack!: {value}")
+    print(f"Quack!: {value}")
 
 def duck_input(addr: int) -> int:
     return int(input("Quack! Gimme an int! "))
