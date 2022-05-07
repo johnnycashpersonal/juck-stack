@@ -11,7 +11,7 @@ from graphics.graphics import Rectangle, Point, Text, GraphWin
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 class MachineStateView(object):
     """View of the CPU and memory state"""

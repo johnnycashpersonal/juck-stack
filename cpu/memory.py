@@ -51,7 +51,7 @@ class Memory(MVCListenable):
 
     def _check_bounds(self, index):
         if index < 0 or index >= self.capacity:
-            raise SegFault("Memory address {} out of bounds".format(index))
+            raise SegFault(f"Memory address {index} out of bounds")
 
     def get(self, index: int) -> int:
         """Fetch a word from memory"""
