@@ -26,7 +26,7 @@ def cli() -> object:
     parser = argparse.ArgumentParser(description="Duck Machine Simulator")
     parser.add_argument("objfile", type=argparse.FileType('r'),
                             help="Object file input")
-    parser.add_argument("-d", "--display", help="Graphical display",
+    parser.add_argument("-d", "--cpu_display", help="Graphical cpu_display",
                         action="store_true")
     parser.add_argument("-s", "--step", help="Single step mode",
                         action="store_true")
@@ -49,11 +49,10 @@ def duck_output(addr: int, value: int) -> None:
 def duck_input(addr: int) -> int:
     return int(input("Quack! Gimme an int! "))
 
-def main():
+def main(objfile: io.IOBase, display=False, single_step=False):
     """" Run a Duck Machine program from
     object code file.
     """
-    args = cli()
     log.debug("Creating the memory")
     mem = MemoryMappedIO(512)
     # We'd like to make it simple to trigger I/O with
@@ -66,17 +65,18 @@ def main():
     mem.map_address_in(510, duck_input)
     mem.map_address_out(511, duck_output)
     cpu = CPU(mem)
-    if args.display:
-        log.debug("Creating a display")
-        display = view.MachineStateView(cpu,1200,800)
-    log.debug(f"Loading object file {args.objfile}")
-    load(args.objfile, mem)
+    if display:
+        log.debug("Creating a cpu_display")
+        cpu_display = view.MachineStateView(cpu, 1200, 800)
+    log.debug(f"Loading object file {objfile}")
+    load(objfile, mem)
     log.debug(f"Loaded, running from start")
-    cpu.run(single_step=args.step)
+    cpu.run(single_step)
     print("Halted")
-    if args.display:
+    if display:
       input("Press enter to end")
 
 
 if __name__ == "__main__":
-    main()
+    args = cli()
+    main(args.objfile, display=args.display, single_step=args.step)

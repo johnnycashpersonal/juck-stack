@@ -155,31 +155,40 @@ fit together we start at the end, with the main program.
 ## Assembler phase 2, main program 
 
 As is typical, the main function is called if the file is run 
-as a main program, and not otherwise: 
+as a main program, and not otherwise.  However, this looks
+slightly different than others we have seen:  The command line
+interface is not called directly from main.   Instead, it is
+called before main, and command line arguments are passed to 
+main.  
 
 ```python
 if __name__ == "__main__":
-    main()
+    args = cli()
+    main(args.sourcefile, args.objfile)
 ```
+
+Why would we do this? Later we may want to put the 
+Duck Machine simulator, both phases of the assembler,
+and a compiler together into one overall script. We won't
+want each part of that chain independently reading and
+interpreting the command line.  Instead, we want the "main"
+program to be callable by a higher-level "main" program for
+the combined script. 
 
 Here's the main function: 
 
 ```python
-def main():
+def main(sourcefile: io.IOBase, objfile: io.IOBase):
     """"Assemble a Duck Machine program"""
-    args = cli()
-    lines = args.sourcefile.readlines()
+    lines = sourcefile.readlines()
     object_code = assemble(lines)
     log.debug(f"Object code: \n{object_code}")
     for word in object_code:
         log.debug(f"Instruction word {word}")
-        print(word,file=args.objfile)
+        print(word,file=objfile)
 ```
 
-`main` obtains command-line arguments from the `cli` function.  We 
-don't need to read that function in detail, but we can see that 
-it expects the returned `args` object to have a `sourcefile` 
-field from which we can call `readlines`.  If we peek inside 
+If we peek inside 
 `cli`, even if we are not very familiar with the `argparse`
 module we can discern that `sourcefile` will be a file, and 
 that it will default to `sys.stdin`.   It appears that the whole 

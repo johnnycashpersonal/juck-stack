@@ -45,6 +45,8 @@ should be stored at this location, rather than
 a Duck Machine instruction.
 
 """
+import io
+
 import context
 from instruction_set.instr_format import Instruction, OpCode, CondFlag, NAMED_REGS
 
@@ -306,16 +308,16 @@ def cli() -> object:
     return args
 
 
-def main():
+def main(sourcefile: io.IOBase, objfile: io.IOBase):
     """"Assemble a Duck Machine program"""
-    args = cli()
-    lines = args.sourcefile.readlines()
+    lines = sourcefile.readlines()
     object_code = assemble(lines)
     log.debug(f"Object code: \n{object_code}")
     for word in object_code:
         log.debug(f"Instruction word {word}")
-        print(word,file=args.objfile)
+        print(word,file=objfile)
 
 if __name__ == "__main__":
-    main()
+    args = cli()
+    main(args.sourcefile, args.objfile)
 
