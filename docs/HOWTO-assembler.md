@@ -1833,6 +1833,27 @@ This completes the required features of your `assembler_phase1`.
 
 # Postscript
 
+## Assemble and Go
+
+In some past versions of this project series, it was tedious
+to chain together the different parts:  Running phase 1 of
+the assembler, then running phase 2 of the assembler, then
+executing the resulting object code.  The commands for these
+steps differed enough between Unixes (Linux and MacOS) and Windows
+that it was also confusing.  Why not have a single Python
+program that does all the steps?   
+
+You can find that single Python program in `run/asmgo.py`.
+The explicit path manipulation in `context.py` in each
+directory still bothers me, but this is the payoff: 
+We can now run each program separately, or run them
+as one combined program.  This is also why the `main`
+functions in each have been refactored, so the 
+the one combined program can take care of the
+command line interface.  We will do the same thing again
+in the next project, when we build a compiler that
+produces Duck Machine assembly code. 
+
 ## Bells and Whistles
 
 All the required features for this project are 
@@ -1853,6 +1874,15 @@ a sequence of values starting at a named location.
 mixed case, replacing them by the upper-case spelling 
 required by phase 2 of the assembler. 
 
+* The combined `asmgo` script runs each step, regardless
+  of whether the prior step succeeded or failed.  It would be
+  better if each `main` function returned an indication of
+  whether that step was successful, with no errors, or whether
+  some error (e.g., a syntax error in the assembly language
+  input) was detected.  The `asmgo` script would then run
+  only until it _either_ finished all the steps _or_ 
+  received notification that some step had failed. 
+  
 None of these are required, but you may wish to at least think 
 about how you would implement them. 
 
