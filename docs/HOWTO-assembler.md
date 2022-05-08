@@ -39,14 +39,14 @@ instead of writing
    The JUMP instruction should be automatically translated 
    into the corresponding ADD instruction, with the address 
    *again* translated into the relative address (that is, 
-   change in program counter) -2.  
+   change in program counter) -3.  
 
     We should be able to similarly
     use symbolic labels for data locations and in LOAD and STORE
     operations. Instead of 
 
     ```
-        LOAD  r1,r0,r15[3] # x is locations forward
+        LOAD  r1,r0,r15[3]   # x is 3 locations ahead
         STORE r1,r0,r0[511]  # Print it
         HALT r0,r0,r0
     x:  DATA  42
@@ -63,7 +63,7 @@ instead of writing
     
 # Assembler Phase II
 
-I have provided ```assembler_phase2.py```, which takes the 
+I have provided `assembler_phase2.py`, which takes the 
 *fully resolved* assembly code and produces object code.  By *fully
 resolved* I mean that it does not contain the short-cuts described 
 above.  There are no pseudo-instructions like JUMP, and all the 
@@ -107,14 +107,14 @@ due care can create code that works most of the time but sometimes
 fails because the requirements of the new context are only *almost* 
 like those of the code from which it was copied.  
 
-We do want to copy useful code from ```assembler_phase2.py``` 
-to create ```assembler_phase1.py```.  In particular, 
-```assembler_phase2.py``` uses somewhat complex regular 
+We do want to copy useful code from `assembler_phase2.py` 
+to create `assembler_phase1.py`.  In particular, 
+`assembler_phase2.py` uses somewhat complex regular 
 expressions for parsing assembly code.  Regular expressions 
-are somewhat difficult to write correctly, and often quite 
+are difficult to write correctly, and especially 
 difficult to debug.  We can save a lot of work by using the 
-regular expressions in ```assembler_phase2.py``` as patterns 
-for the regular expressions we need in ```assembler_phase1.py```, 
+regular expressions in `assembler_phase2.py` as patterns 
+for the regular expressions we need in `assembler_phase1.py`, 
 and we can reuse some other logic as well. We do not want to do it 
 sloppily.  We will have to read the code carefully and adapt 
 it appropriately. 
@@ -128,26 +128,26 @@ and simply written to the output.  We can make use of the regular
 expressions already in Assembler Phase II to recognize the 
 assembly language instructions that it can handle, and we can 
 simplify the processing of those.   We will need to add a couple new 
-patterns for the pseudo-instruction ```JUMP``` and the 
+patterns for the pseudo-instruction `JUMP` and the 
 new form for instructions that refer to data in memory, 
 and we will need to
 add some processing to "resolve" labels, i.e., to determine 
 the addresses they correspond to and substitute those addresses
-into instructions (```LOAD```, ```STORE```, and ```JUMP``` ) that 
+into instructions (`LOAD`, `STORE`, and `JUMP` ) that 
 can refer to labels. 
 
 ## Start simple! 
 
-Let's start by writing an ```assembler_phase1.py``` that only 
-passes through the instructions that ```assembler_phase2.py``` 
+Let's start by writing an `assembler_phase1.py` that only 
+passes through the instructions that `assembler_phase2.py` 
 can already handle.  This will  make a good base for 
 us to work from.  Essentially we'll just be 
-copying ```assembler_phase2.py``` 
+copying `assembler_phase2.py` 
 and cutting away the parts we don't need.  At the same time we can 
-be reading and understanding how ```assembler_phase2.py``` works 
+be reading and understanding how `assembler_phase2.py` works 
 so that we can plan the new functionality. 
 
-We'll begin by reading ```assembler_phase2.py``` and getting
+We'll begin by reading `assembler_phase2.py` and getting
 an overall sense of how it works and what we can reuse.  
 We might skim from first to last, but for seeing how the pieces 
 fit together we start at the end, with the main program. 
@@ -170,38 +170,38 @@ def main():
     args = cli()
     lines = args.sourcefile.readlines()
     object_code = assemble(lines)
-    log.debug("Object code: \n{}".format(object_code))
+    log.debug(f"Object code: \n{object_code}")
     for word in object_code:
-        log.debug("Instruction word {}".format(word))
+        log.debug(f"Instruction word {word}")
         print(word,file=args.objfile)
 ```
 
-```main``` obtains command-line arguments from the ```cli``` function.  We 
+`main` obtains command-line arguments from the `cli` function.  We 
 don't need to read that function in detail, but we can see that 
-it expects the returned ```args``` object to have a ```sourcefile``` 
-field from which we can call ```readlines```.  If we peek inside 
-```cli```, even if we are not very familiar with the ```argparse```
-module we can discern that ```sourcefile``` will be a file, and 
-that it will default to ```sys.stdin```.   It appears that the whole 
-file is read into a list with ```readlines```, and then 
-the ```assemble``` function converts that to a list of ```Instruction```
-objects, which are printed in a loop at the end of the ```main``` function. 
+it expects the returned `args` object to have a `sourcefile` 
+field from which we can call `readlines`.  If we peek inside 
+`cli`, even if we are not very familiar with the `argparse`
+module we can discern that `sourcefile` will be a file, and 
+that it will default to `sys.stdin`.   It appears that the whole 
+file is read into a list with `readlines`, and then 
+the `assemble` function converts that to a list of `Instruction`
+objects, which are printed in a loop at the end of the `main` function. 
 
 For our phase 1 of the assembler, we will not be converting 
 the lines to machine instructions, but we should be able to 
 reuse most of this basic structure.  We can read all the lines 
-into a list and then process them as ```main``` does.  It appears 
-that all the interesting work is in the ```assemble``` function, 
+into a list and then process them as `main` does.  It appears 
+that all the interesting work is in the `assemble` function, 
 so that's where we'll look next. 
 
 ## Assembler phase 2, assemble
 
-From reading ```main``` we have an expectation that ```assemble``` 
+From reading `main` we have an expectation that `assemble` 
 takes a list of source lines (strings) and returns a list of 
-```Instruction``` objects.  The header docstrng elaborates: 
+`Instruction` objects.  The header docstrng elaborates: 
 
 ```python
- def assemble(lines: List[str]) -> List[int]:
+ def assemble(lines: list[str]) -> list[int]:
     """
     Simple one-pass translation of assembly language
     source code into instructions.  Empty lines and lines
@@ -212,16 +212,16 @@ takes a list of source lines (strings) and returns a list of
         ADD/Z   r15,r0,r0[-3]   # OK, jump 3 steps back if zero is in condition code
     but not
         STORE   r1,variable     # cannot use symbolic address of variable
-        JUMP/Z  again           # cannot use pseudo-instruction JUMP or symbolc label 'again'
+        JUMP/Z  again           # cannot use pseudo-instruction JUMP or symbolic label 'again'
     """
 ```
 
-From this docstring can see what ```assemble``` does do (translate 
+From this docstring can see what `assemble` does do (translate 
 instructions like the two positive examples) as well as some of 
 what we'll need to do in phase 1 (convert lines like the 
 two negative examples into lines like the two positive examples). 
 
-Let's take a look at how ```assemble``` works, again with an eye 
+Let's take a look at how `assemble` works, again with an eye 
 to what we can reuse and what we will need to modify. 
 
 ```python
@@ -229,7 +229,7 @@ to what we can reuse and what we will need to modify.
     instructions = [ ]
     for lnum in range(len(lines)):
         line = lines[lnum]
-        log.debug("Processing line {}: {}".format(lnum, line))
+        log.debug(f"Processing line {lnum}: {line}")
         try: 
             fields = parse_line(line)
             if fields["kind"] == AsmSrcKind.FULL:
@@ -242,16 +242,16 @@ to what we can reuse and what we will need to modify.
                 word = value_parse(fields["value"])
                 instructions.append(word)
             else:
-                log.debug("No instruction on line")
+                log.debug(f"No instruction on line {lnum}: {line}")
         except SyntaxError as e:
             error_count += 1
-            print("Syntax error in line {}: {}".format(lnum, line), file=sys.stderr)
+            print(f"Syntax error in line {lnum}: {line}", file=sys.stderr)
         except KeyError as e:
             error_count += 1
-            print("Unknown word in line {}: {}".format(lnum, e), file=sys.stderr)
+            print(f"Unknown word in line {lnum}: {e}", file=sys.stderr)
         except Exception as e:
             error_count += 1
-            print("Exception encountered in line {}: {}".format(lnum, e), file=sys.stderr)
+            print(f"Exception encountered in line {lnum}: {e}", file=sys.stderr)
         if error_count > ERROR_LIMIT:
             print("Too many errors; abandoning", file=sys.stderr)
             sys.exit(1)
@@ -275,9 +275,9 @@ what each iteration of the loop does.
 ```
 
 We can see that it initializes a counter before the loop, and 
-the name ```error_count``` suggests that we might encounter 
+the name `error_count` suggests that we might encounter 
 lines that we can't translate properly.   We can guess that it is 
-appending ```Instruction``` objects to the ```instructions``` list, 
+appending `Instruction` objects to the `instructions` list, 
 which it returns at the end of the function. 
 
 We might have expected the loop to be 
@@ -293,14 +293,14 @@ but instead it is
         line = lines[lnum]
 ```
 
-Why?  It seems there must be some need for ```lnum```, the
+Why?  It seems there must be some need for `lnum`, the
 index of the line, within the loop.   If we search for uses of 
-```lnum``` within the loop body, we get the answer: 
+`lnum` within the loop body, we get the answer: 
 
 ```python
         except SyntaxError as e:
             error_count += 1
-            print("Syntax error in line {}: {}".format(lnum, line), file=sys.stderr)
+            print(f"Syntax error in line {lnum}: {line}", file=sys.stderr)
 ```
 
 The line number is not used in the translation process per se.  It 
@@ -325,12 +325,12 @@ text of a source line, is wrapped in a try/except block:
             # we might encounter
 ```
 
-We will need to look in more detail at both the ```parse_line``` 
-function and the processing here in the ```assemble``` function. 
-It's good to finish summarizing the ```assemble``` function first,
+We will need to look in more detail at both the `parse_line` 
+function and the processing here in the `assemble` function. 
+It's good to finish summarizing the `assemble` function first,
 before we dive into another function, but we need to understand a 
-little bit more about what ```fields``` is, so we briefly look 
-at the header and docstring of ```parse_line```: 
+little bit more about what `fields` is, so we briefly look 
+at the header and docstring of `parse_line`: 
 
 ```python
 def parse_line(line: str) -> dict:
@@ -344,11 +344,11 @@ def parse_line(line: str) -> dict:
 ```
 
 This gives us what we need to know to make sense of the 
-rest of the ```assemble``` function.  We are expecting a 
-```dict``` containing information about *fields* in a 
-matched instruction.  The ```kind``` field will identify 
+rest of the `assemble` function.  We are expecting a 
+`dict` containing information about *fields* in a 
+matched instruction.  The `kind` field will identify 
 the pattern matched by the line.  So let's look at how 
-the ```kind``` field is used in ```assemble```. 
+the `kind` field is used in `assemble`. 
 
 ```python
            fields = parse_line(line)
@@ -365,8 +365,8 @@ the ```kind``` field is used in ```assemble```.
                 log.debug("No instruction on line")
 ```
 
-We can see that ```kind``` is a value of the 
-```AsmSrcKind``` class, and looking for ```AsmSrcKind``` 
+We can see that `kind` is a value of the 
+`AsmSrcKind` class, and looking for `AsmSrcKind` 
 earlier in the file 
 we can learn that it is an enumeration: 
 
@@ -386,10 +386,10 @@ class AsmSrcKind(Enum):
 ```
 
 We can see that there are three kinds of source lines that 
-```assemble``` expects to encounter: comments (which it skips), 
+`assemble` expects to encounter: comments (which it skips), 
 and data and 'full' lines. 
 
-Data words are apparently translated by ```value_parse```:
+Data words are apparently translated by `value_parse`:
 
 ```python
             elif fields["kind"] == AsmSrcKind.DATA:
@@ -397,7 +397,7 @@ Data words are apparently translated by ```value_parse```:
                 instructions.append(word)
 ```
 
-We can peek at the header of ```value_parse``` to see what it does. 
+We can peek at the header of `value_parse` to see what it does. 
 
 ```python
 def value_parse(int_literal: str) -> int:
@@ -422,13 +422,13 @@ That leaves the 'full' kind:
 ```
 
 We can see that it ends by encoding the instruction into an integer 
-and appending it to the list of instructions. (We can guess that the ```instructions```
-list is a list of integers rather than ```Instruction``` objects because 
+and appending it to the list of instructions. (We can guess that the `instructions`
+list is a list of integers rather than `Instruction` objects because 
 it contains not only real instructions but also data.)  Working backward 
-through the code, we can see that the ```Instruction``` object is 
-constructed by ```instruction_from_dict```, which we might 
-reasonably surmise takes a ```dict``` and returns an ```Instruction.``` 
-Peeking at the header for ```instruction_from_dict``` confirms this: 
+through the code, we can see that the `Instruction` object is 
+constructed by `instruction_from_dict`, which we might 
+reasonably surmise takes a `dict` and returns an `Instruction.` 
+Peeking at the header for `instruction_from_dict` confirms this: 
 
 ```python
 def instruction_from_dict(d: dict) -> Instruction:
@@ -438,16 +438,16 @@ def instruction_from_dict(d: dict) -> Instruction:
     """
 ```
 
-The details of ```instruction_from_dict``` will probably 
+The details of `instruction_from_dict` will probably 
 not concern us unless we find that for some reason we need to 
-create actual ```Instruction``` objects in phase 1.  More likely 
+create actual `Instruction` objects in phase 1.  More likely 
 we will just manipulate strings. 
 
 Still working backward through the code of ```assemble```, 
-we see that before passing the ```fields``` dictionary to ```instruction_from_dict```, 
-```assemble``` passes it to ```fill_defaults```.  We can make a 
+we see that before passing the `fields` dictionary to `instruction_from_dict`, 
+`assemble` passes it to `fill_defaults`.  We can make a 
 pretty good guess what that might do, but let's just take a look 
-at the header of ```fill_defaults``` to be sure. 
+at the header of `fill_defaults` to be sure. 
 
 ```python
 def fill_defaults(fields: dict) -> None:
@@ -459,10 +459,11 @@ def fill_defaults(fields: dict) -> None:
 
 The header docstring confirms that it fills in missing fields
 with default values.  The code of the method is very short, and 
-tells us that the code of ```fill_defaults``` doesn't actually 
+tells us that the code of `fill_defaults` doesn't actually 
 have any notion of what fields may be missing and how they 
 should be filled in.  This is *table driven* code, with the 
- actual details kept in a table (Python dict) ```INSTR_DEFAULTS```: 
+ actual details kept in a table 
+(Python dict) ```INSTR_DEFAULTS```: 
 
 ```python
 # Defaults for values that ASM_FULL_PAT makes optional
@@ -497,15 +498,15 @@ At the very beginning of ```assemble``` we find the line
           fields = parse_line(line)
 ```
 
-We understand now what ```fields``` should be, and we 
+We understand now what `fields` should be, and we 
 already looked at its header and saw that it parses a 
 single line of assembly language, which could be just a 
 comment, or the representation of some data, or a
 complete  
 assembly language instruction (possibly with a couple of 
-elisions that ```fill_defaults``` will fill in). 
+elisions that `fill_defaults` will fill in). 
 We'll need to parse assembly language as well, so we need to 
-dive into ```parse_line``` to see how it works. 
+dive into `parse_line` to see how it works. 
 
 ```python
 def parse_line(line: str) -> dict:
@@ -516,20 +517,20 @@ def parse_line(line: str) -> dict:
     syntax. Sets the 'kind' field to indicate
     which of the patterns was matched.
     """
-    log.debug("\nParsing assembler line: '{}'".format(line))
+    log.debug(f"\nParsing assembler line: '{line}'")
     # Try each kind of pattern
     for pattern, kind in PATTERNS:
         match = pattern.fullmatch(line)
         if match:
             fields = match.groupdict()
             fields["kind"] = kind
-            log.debug("Extracted fields {}".format(fields))
+            log.debug(f"Extracted fields {fields}")
             return fields
-    raise SyntaxError("Assembler syntax error in {}".format(line))
+    raise SyntaxError(f"Assembler syntax error in {line}")
 ```
 
 There are no specific patterns for the assembly language here ... 
-it's table-driven code again.   We can summarize ```parse_line```
+it's table-driven code again.   We can summarize `parse_line`
 as 
 
 ``` 
@@ -552,7 +553,7 @@ PATTERNS = [(ASM_FULL_PAT, AsmSrcKind.FULL),
 ```
 
 This matches our expectation (each pattern is paired 
-with one of the ```AsmSrcKind``` values), but we need to look 
+with one of the `AsmSrcKind` values), but we need to look 
 a little farther to see what the patterns actually look like. 
 And that's because they are fairly complex.  Let's start with the 
 simplest: 
@@ -619,22 +620,22 @@ whitespace (spaces or tabs), and then
    )?
 ```
 
-The outer ```( ... )?``` says this part is optional.  The 
-inner part ```(?P<label> ... )``` says that if it is 
+The outer `( ... )?` says this part is optional.  The 
+inner part `(?P<label> ... )` says that if it is 
 matched, the part within the inner parentheses will be 
-in the "group" called ```label```.  
-```parse_line``` will use the ```groupdict``` method 
+in the "group" called `label`.  
+`parse_line` will use the `groupdict` method 
 to obtain a dictionary describing the match, so 
-```label``` would be a key in this dictionary if
+`label` would be a key in this dictionary if
 it matches. 
 Note a colon (":")
 is required to match, but it is outside the group that 
-will be called ```label```.  
+will be called `label`.  
 
-The text matched as a label must match ```[a-zA-Z]\w*```.  
-If we look up ```\w``` in the documentation at 
+The text matched as a label must match `[a-zA-Z]\w*`.  
+If we look up `\w` in the documentation at 
 https://docs.python.org/3/library/re.html, we will see that 
-```\w``` matches any "word" character, which is described as
+`\w` matches any "word" character, which is described as
 "*most characters that can be part of a word in any language, as well as numbers and the underscore*
 ".  So a label must start with a label, but then it can contain
 digits, underscore, and most "letters" 
@@ -662,13 +663,13 @@ labeled ```comment```, starts with a character class:
 [\#;]
 ```
 
-This class matches only two characters, the hash ```#``` or 
-semicolon ```;```.    The ```.*``` then matches anything at 
+This class matches only two characters, the hash `#` or 
+semicolon `;`.    The `.*` then matches anything at 
 all, so this pattern will gobble up the rest of the source line. 
 
 Since the comment is optional, the pattern must also match 
 spaces that could appear at the end of the line.  The end of the 
-line itself matches ```$```. 
+line itself matches `$`. 
 
 ```python
 \s*$
@@ -683,10 +684,10 @@ determine the address that each label represents.
 
 ### Data lines 
 
-Next we can look at ```ASM_DATA_PAT```.  
+Next we can look at `ASM_DATA_PAT`.  
 
 ```python
-# A data word in memory; not a DM2019W instruction
+# A data word in memory; not a Duck Machine instruction
 #
 ASM_DATA_PAT = re.compile(r""" 
    \s* 
@@ -712,14 +713,14 @@ ASM_DATA_PAT = re.compile(r"""
 
 The label part of this pattern is just like the label 
 that can be on a comment line.  The remainder matches the 
-string ```DATA``` optionally followed by a value that can be 
-either hexadecimal (```0x[a-fA-F0-9]+```) or decimal 
-(```([0-9]+)```).   The value part can be followed by a 
+string `DATA` optionally followed by a value that can be 
+either hexadecimal (`0x[a-fA-F0-9]+`) or decimal 
+(`([0-9]+)`).   The value part can be followed by a 
 comment, which has a pattern similar to that the comment 
 pattern we saw above. 
 
-We can simply pass these ```DATA``` instructions through 
-phase 1 without change, as we will with comments, but again 
+In `assembler_phase1.py` we  can simply pass these `DATA` instructions through 
+without change, as we will with comments, but again 
 we will need to determine the address associated with the label. 
 
 ### The ASM_FULL_PAT pattern 
@@ -728,9 +729,9 @@ Deep breath.  We're ready to tackle the big one,
 the pattern for full assembly language instructions. 
 Moreover, while we can probably use the other two patterns 
 just as they are, we'll need to construct variations 
-on ```ASM_FULL_PAT``` to match source lines that are not
-accepted by phase 2 of the assembler, so it's important that 
-we understand this one in detail. 
+on `ASM_FULL_PAT` to match source lines that are not
+accepted by phase 2 of the assembler.  We need to 
+understand this pattern in detail. 
 
 ```python
 # Instructions with fully specified fields. We can generate
@@ -774,7 +775,7 @@ instruction itself:
     (\[ (?P<offset>[-]?[0-9]+) \])?     # Offset (optional)
 ```
 
-The ```opcode``` part is simple:  It's just a string of one or 
+The `opcode` part is simple:  It's just a string of one or 
 more letters.  We don't make any attempt to distinguish between 
 legal operation codes like "ADD" and misspelled operation codes 
 like "add" or "BAMBOOZLE".  
@@ -788,7 +789,7 @@ The operation code is followed by a predicate, which is optional:
 If the slash is present, at least one letter must follow it.  Again we 
 make no attempt to distinguish between legal predicates like "PZ"
 and "ALWAYS" and illegal predicates like "IFTHEMOONISFULL". We've 
-already seen how ```fill_defaults``` will substitute "ALWAYS"
+already seen how `fill_defaults` will substitute "ALWAYS"
 if this field is omitted. 
 
 At least one space ("\s+") separates the operation code from the 
@@ -806,17 +807,17 @@ enclosed in square brackets.  "[321]" and "[-321]" are legal, but
 ### How these fields are matched 
 
 It's worth reviewing how these regular expressions are
-matched before we start sketching ```assembler_pass1.py```. 
+matched before we start sketching `assembler_pass1.py`. 
 There are three patterns, each of which permits an optional 
 label at the beginning and an optional comment at the end. 
-The main ```parse_line``` function simply tries each pattern 
-in the order they appear in the ```PATTERNS``` list.  It 
+The main `parse_line` function simply tries each pattern 
+in the order they appear in the `PATTERNS` list.  It 
 extracts a dictionary containing the matching fields, and 
-it adds to that dictionary one extra field caled ```kind```, 
+it adds to that dictionary one extra field caled `kind`, 
 indicating which pattern matched.  
 
 We can mostly adopt this same strategy.  We won't have to 
-encode the instructions and data values as ```assembler_phase2```
+encode the instructions and data values as `assembler_phase2`
 does, but we will have to process labels, on every kind 
 of source line they may appear on.  We may also need 
 new patterns for the JUMP pseudo-instruction we introduce 
@@ -829,7 +830,7 @@ In general outline, we need to do the following:
 * Associate labels with addresses.
 * If a statement *refers to* a label (e.g., stores 
 into a data location called *x*, or jumps to a label 
-called *again*), we will replace that reference 
+called *again*), we will replace that reference with
 a combination of register and offset that gives 
 the address.  (In particular, we will make addresses 
 relative to the program counter.)
@@ -856,7 +857,7 @@ the overall program flow as well.
 
 We need a plan for incremental development, not just 
 of individual functions but of the program as a whole, 
-including large parts of ```assembler_phase2``` that 
+including large parts of `assembler_phase2` that 
 we can reuse.  Here's a plan: 
 
 * Write a "stub" version reusing as much of the phase 2 assembler
@@ -871,7 +872,7 @@ those addresses at first, but we'll be able to write
 unit tests for them. 
 
 * Then we'll start adding in the translations.  We can start
-with ```LOAD``` and ```STORE``` instructions with references
+with `LOAD` and `STORE` instructions with references
 to labeled data locations. 
 
 * We can continue to add patterns for other pseudo-instructions 
@@ -889,14 +890,14 @@ inevitably occurs in software development.*
 
 ## The Big Copy
 
-We start by simply copying ```assembler_phase2.py``` to a new file 
-```assembler_phase1.py```.   Then we're ready to start editing. 
+We start by simply copying `assembler_phase2.py` to a new file 
+`assembler_phase1.py`.   Then we're ready to start editing. 
 
 First let's fix up the header comment: 
 
 ```python
 """
-Assembler Phase I for DM2019W assembly language.
+Assembler Phase I for Duck Machine assembly language.
 
 This assembler produces fully resolved instructions,
 which may be the input of assembler_phase2.py. 
@@ -923,8 +924,8 @@ An instruction has the following form:
 
   opcode/predicate  target,src1,src2[disp]
 
-Opcode is required, and should be one of the DM2018W 
-instruction codes (ADD, MOVE, etc); case-insensitive
+Opcode is required, and should be one of the DM2022 
+instruction codes (ADD, MOVE, etc).
 
 /predicate is optional.  If present, it should be some 
 combination of M,Z,P, or V e.g., /NP would be "execute if 
@@ -933,7 +934,7 @@ as /ALWAYS, which is an alias for /MZPV.
 
 target, src1, and src2 are register numbers (r0,r1, ... r15)  
 
-[disp] is optional.  If present, it is a 12 bit 
+[disp] is optional.  If present, it is a 10 bit 
 signed integer displacement.  If absent, it is 
 treated as [0]. 
 
@@ -953,7 +954,7 @@ DATA is a pseudo-operation:
    myvar:  DATA   18
 indicates that the integer value 18
 should be stored at this location, rather than
-a DM2018S instruction.
+a Duck Machine instruction.
 
 """
 ```
@@ -962,35 +963,38 @@ We can keep the import statements,
 including the log configuration.  We can add other 
 import statements later if we need them, and at the
 end we can trim out any we didn't use.  (PyCharm 
-helpfully greys out imports that aren't used.)
+helpfully greys out imports that aren't used, but it 
+is confused about the `context` import that we use 
+to link together different parts of this multi-week 
+project.)
 
-The ```SyntaxError``` exception is still useful.  The limit 
+The `SyntaxError` exception is still useful.  The limit 
 of 5 errors before we give up is still fine. 
 
-It's not obvious whether we'll still want ```DICT_NO_MATCH``` or not. 
+It's not obvious whether we'll still want `DICT_NO_MATCH` or not. 
 We can cut it later if we don't need it. 
 
-We'll keep the basic approach of the ```AsmSrcKind``` 
-enumeration and the ```PATTERNS``` table that associates 
+We'll keep the basic approach of the `AsmSrcKind` 
+enumeration and the `PATTERNS` table that associates 
 regular expression patterns with different kinds of lines.  
 We know that soon we'll need to add a pattern or two, but 
 not yet.  For now we keep the regular expressions as they are. 
-Likewise the defaults table. ```parse_line```,  
-and ```value_parse``` can also stay.   
+Likewise the defaults table. `parse_line`,  
+and `value_parse` can also stay.   
 
-How about ```instruction_from_dict```?  This function is 
-for producing an ```Instruction``` object.  We are unlikely 
+How about `instruction_from_dict`?  This function is 
+for producing an `Instruction` object.  We are unlikely 
 to want it in this form.  Let's cut it out; we can always copy 
-it back from ```assembler_phase2.py``` if we discover we need it. 
-```fill_defaults``` is important when constructing ```Instruction```
+it back from `assembler_phase2.py` if we discover we need it. 
+```fill_defaults``` is important when constructing `Instruction`
 objects, but will also be unnecessary here. 
 
-The ```assemble``` function needs a new name and a new 
+The `assemble` function needs a new name and a new 
 docstring, and it should return a list of 
 strings instead of a list of integers, but we can reuse most of it. 
 
 ```python
-def transform(lines: List[str]) -> List[str]:
+def transform(lines: list[str]) -> list[int]:
     """
     Transform some assembly language lines, leaving others
     unchanged. 
@@ -1012,8 +1016,8 @@ def transform(lines: List[str]) -> List[str]:
 ```
 
 We can leave the loop through the lines as it is, and 
-even the pattern matching.  Maybe we should change ```instructions```
-to ```transformed```, to be clear about its purpose.  But mostly 
+even the pattern matching.  Maybe we should change `instructions`
+to `transformed`, to be clear about its purpose.  But mostly 
 we are just going to cut out the translation to object code.   Where 
 we had 
 
@@ -1034,7 +1038,7 @@ we can chop it down to
 ```
 
 We will make a similar change to handling of ```DATA``` lines, 
-simply adding each line to the ```trqnsformed``` list.  
+simply adding each line to the ```transformed``` list.  
 
 One place we must add a little code is the handling of comment 
 lines.  The phase 2 program discarded these, because no object 
@@ -1062,21 +1066,6 @@ def cli() -> object:
     return args
 ```
 
-And finally we should fix up the command line interpreter: 
-
-```python
-def cli() -> object:
-    """Get arguments from command line"""
-    parser = argparse.ArgumentParser(description="Duck Machine Assembler (phase 1)")
-    parser.add_argument("sourcefile", type=argparse.FileType('r'),
-                            nargs="?", default=sys.stdin,
-                            help="Duck Machine assembly code file")
-    parser.add_argument("objfile", type=argparse.FileType('w'),
-                            nargs="?", default=sys.stdout, 
-                            help="Transformed assembly language file")
-    args = parser.parse_args()
-    return args
-```
 
 At this point we should have a perfectly useless program that reads a fully resolved assembly
 language program and prints it without changes.  We can test this 
@@ -1086,13 +1075,13 @@ by running it on a .dasm file from the programs directory:
  python3 assembler_phase1.py programs/fact.dasm
 ```
 
-We will notice one problem:  Since the ```lines``` list
+We will notice one problem:  Since the `lines` list
 includes a newline at the end of each string, the 
-```transformed``` list does also, and this causes our 
+`transformed` list does also, and this causes our 
 output to include extra newlines (a blank line after each 
 line of code).  There are several ways we could fix this. 
 The approach I chose 
-was changing one line in ```transform``` from 
+was changing one line in `transform` from 
 
 ```python
         line = lines[lnum]
@@ -1120,11 +1109,11 @@ to a line like
 
 where -4 would be the difference between the current 
 instruction address and the address at which the 
-label ```somewhere``` is found.  This involves both
+label `somewhere` is found.  This involves both
 analyzing the source code and transforming it.  We 
 want to proceed in small steps, and it is not possible 
 to perform the transformation (substituting a relative 
-address like -4 for the label ```somewhere```) without
+address like -4 for the label `somewhere`) without
 the analysis step, but it is possible to perform the 
 analysis without the transformation, so that is the 
 step we'll program first.  
@@ -1133,7 +1122,7 @@ step we'll program first.
 
 One thing you may notice right away is that a label 
 might be *used* before it is *defined*.  For example, 
-consider our ```max``` program: 
+consider our `max` program: 
 
 ``` 
    LOAD r1,r0,r0[510]     # Trigger read from console
@@ -1147,7 +1136,7 @@ r1bigger:
    HALT r0,r0,r0
 ```
 
-The label ```r1bigger``` appears in a ```JUMP``` instruction 
+The label `r1bigger` appears in a `JUMP` instruction 
 before it appears as a label.  This tells us that a single 
 loop through the lines (a single *pass*) will not work.  
 We will need one loop to gather information (without 
@@ -1156,8 +1145,20 @@ transformation.  This approach, in which we loop through
 the same data more than once, is called a *two pass algorithm* 
 or more generally a *multi-pass algorithm*. 
 
+_Aside_:  We've seen two-pass algorithms before. 
+Recall that the `naked_single` method for our Sudoku solver
+made one pass through a group to determine which values were
+already used, then a second pass through the same group of 
+tiles to remove those values as candidates in unknown tiles. 
+The `hidden_single` method made one pass through the tiles in
+a group to determine which values were _not_ yet used 
+(we called them _leftover_ values),
+then for each _leftover_ value it made another pass through
+the same tiles to determine whether there was just one
+place to put that value.  In each of these cases, we gathered some information in the first pass, then used it in a subsequent pass or passes. 
+
 To implement address resolution as a two pass algorithm, 
-instead of modifying the loop body of ```transform```, we 
+instead of modifying the loop body of `transform`, we 
 will make a second copy of the loop, in a separate function. 
 That function will run exactly the same pattern matching as 
 ```transform```, but instead of building a new list of 
@@ -1165,7 +1166,7 @@ transformed source lines, it will build a table (a dict)
 associating labels with addresses.  
 
 ```python
-def resolve(lines: List[str]) -> Dict[str, int]: 
+def resolve(lines: list[str]) -> dict[str, int]: 
     """
     Build table associating labels in the source code 
     with addresses. 
@@ -1184,29 +1185,28 @@ make our modifications.
     transformed = [ ]
     for lnum in range(len(lines)):
         line = lines[lnum].rstrip()
-        log.debug("Processing line {}: {}".format(lnum, line))
+        log.debug(f"Processing line {lnum}: {line}")
         try: 
             fields = parse_line(line)
             if fields["kind"] == AsmSrcKind.FULL:
                 log.debug("Passing through FULL instruction")
                 transformed.append(line)
             elif fields["kind"] == AsmSrcKind.DATA:
-                log.debug("Passing through DATA instruction")
                 transformed.append(line)
             else:
-                log.debug(" -xxx- No pattern matched -xxx- ")
+                log.debug(f"No instruction on line {lnum}: {line}")
                 transformed.append(line)
         except SyntaxError as e:
             error_count += 1
-            print("Syntax error in line {}: {}".format(lnum, line))
+            print(f"Syntax error in line {lnum}: {line}", file=sys.stderr)
         except KeyError as e:
             error_count += 1
-            print("Unknown word in line {}: {}".format(lnum, e))
+            print(f"Unknown word in line {lnum}: {e}", file=sys.stderr)
         except Exception as e:
             error_count += 1
-            print("Exception encountered in line {}: {}".format(lnum, e))
+            print(f"Exception encountered in line {lnum}: {e}", file=sys.stderr)
         if error_count > ERROR_LIMIT:
-            print("Too many errors; abandoning")
+            print("Too many errors; abandoning", file=sys.stderr)
             sys.exit(1)
     return transformed
 ```
@@ -1215,30 +1215,36 @@ One of the parts we *don't* want to duplicate is printing
 specific error messages for each kind of error we might 
 find in the source assembly code.  We don't want two messages 
 for each error!  So we need to decide: Handle syntax errors 
-in ```resolve```, or in ```transform```, or some in each? 
+in `resolve`, or in `transform`, or some in each? 
 
 One kind of error we could encounter is a label that is used 
 but never defined  (probably because it is misspelled).  That 
-will be easier to deal with in ```transform```, because in 
-```resolve``` we don't know the difference between a label that
+will be easier to deal with in `transform`, because in 
+`resolve` we don't know the difference between a label that
 is not defined at all and a label that just hasn't been 
 defined *yet*.  Since we will handle at least some errors in 
-```transform```, we'll take the tactic of handling all of 
-them there.  In ```resolve``` we'll still need to catch 
+`transform`, we'll take the tactic of handling all of 
+them there.  In `resolve` we'll still need to catch 
 exceptions, but we can just ignore them.  We'll replace the 
-long list of exceptions by one very simple handler: 
+long list of exceptions by one very simple handler, but
+leave a little logging there in case we need to debug
+a program error that causes an unexpected exception: 
 
 ```python
-       except  Exception:
+        except  Exception as e:
+            log.debug(f"Exception encountered line {lnum}: {e}")
             # Just ignore errors here; they will be handled in
             # transform
-            pass
 ```
 
-We can also remove the ```error_count``` variable from 
-```resolve```.  Instead of initializing and returning the 
-```transformed``` list, we'll initialize and return a 
-dictionary; let's call it ```labels```.  
+We can also remove the `error_count` variable from 
+`resolve`.  Instead of initializing and returning the 
+`transformed` list, we'll initialize and return a 
+dictionary; let's call it `labels`.  
+
+```python
+    labels: dict[str, int] = { }
+```
 
 When we encounter a line with  label, we will need to add 
 an entry to the table.  The value of that entry should be 
@@ -1248,7 +1254,7 @@ same as the line number, because some lines in the source
 file do not correspond to any code in the object code 
 that will be generated by phase 2 of the assembler.  
 Therefore we'll need to keep track of the current address, 
-which I will creatively call ```address```.  Initially 
+which I will creatively call `address`.  Initially 
 it is 0, since we start our Duck Machine object code 
 programs at address 0 in memory.  
 After we process a line that will take up space in the 
@@ -1258,12 +1264,12 @@ it.
 
 Which source lines will take up space in the object program? 
 In our current set of patterns, lines that do *not* take up 
-space match the ```ASM_COMMENT_PAT``` pattern and are 
-tagged with a ```kind``` of ```AsmSrcKind.COMMENT```.  
+space match the `ASM_COMMENT_PAT` pattern and are 
+tagged with a `kind` of `AsmSrcKind.COMMENT`.  
 We will add some patterns later, but we'll try to preserve 
-the property that only lines with the ```AsmSrcKind.COMMENT```
+the property that only lines with the `AsmSrcKind.COMMENT`
 kind do not take up space in memory.  That will simplify 
-our logic:  For ```AsmSrcKind.COMMENT``` we will not 
+our logic:  For `AsmSrcKind.COMMENT` we will not 
 increment the address counter, and for any other kind of 
 line we will. 
 
@@ -1275,7 +1281,7 @@ With these two properties, the logic of building the
 table is pretty simple.  In pseudocode: 
 
 ``` 
-labels = { }
+labels: dict[str, int] = { }
 address = 0
 for each line: 
     if the line has a label: 
@@ -1286,7 +1292,8 @@ return labels
 ```
 
 I will leave it to you to write the Python code.  We can 
-start a unit test suite to check it: 
+start a unit test suite to check it.  Once again we will 
+place `test_assembler_phase1.py` in the `tests` directory.  
 
 ```python
 """Unit tests for assembler phase 1"""
@@ -1321,8 +1328,13 @@ if __name__ == "__main__":
 
 ## Transform
 
-Our ```transform``` function will call ```resolve``` before 
-its own loop through the lines.  Then it will need to use 
+Our main program could call `resolve` first, and then pass
+the table produced by `resolve` to `transform`.  I think it's
+a little nicer to keep the main program as simple as possible,
+and instead have `transform` call `resolve` to obtain the
+table of labels and addresses, so that's how I did it. 
+
+`transform` will need to use 
 the table of labels for each line that uses a symbolic 
 label in place of an address.  The instructions that need 
 to be transformed will either specify one register and a
@@ -1338,17 +1350,17 @@ or they will have only a reference to a label, like
     JUMP/Z  again
 ```
 
-Leaving aside pseudo-operations like ```JUMP``` for the 
+Leaving aside pseudo-operations like `JUMP` for the 
 moment, we'll start with existing operation codes like 
-```STORE``` and ```LOAD```. 
+`STORE` and `LOAD`. 
 
 We'll need a new pattern for these.  We can base it on 
-the existing regular expression ```ASM_FULL_PAT```, keeping 
-```target``` but replacing
-```src1```, ```src2```, and ```offset``` by a single 
-field ```labelref``` that is like the optional ```label``` 
+the existing regular expression `ASM_FULL_PAT`, keeping 
+`target` but replacing
+`src1`, `src2`, and `offset` by a single 
+field `labelref` that is like the optional `label` 
 part of the line but not optional and without the trailing 
-":".   We'll call it ```ASM_MEMOP_PAT```. 
+":".   We'll call it `ASM_MEMOP_PAT`. 
 I think you can figure it out. 
 
 We'll need to add our new pattern to the ```PATTERNS``` table. 
@@ -1373,7 +1385,7 @@ PATTERNS = [(ASM_FULL_PAT, AsmSrcKind.FULL),
 ```
 
 Because of our table-driven design, this should 
-be enough for ```parse_line``` to parse 
+be enough for `parse_line` to parse 
 lines of this new kind.  We'll add a unit test
 to be sure: 
 
@@ -1395,16 +1407,15 @@ class TestParseMemop(unittest.TestCase):
         self.assertEqual(fields["labelref"], "something")
         self.assertEqual(fields["opcode"], "STORE")
         self.assertEqual(fields["label"], "bogon")
-
 ```
 
 With this working, we need to apply the transformation 
-in ```transform```.  Note that we should not have to 
-change ```resolve``` at all, because we have maintained 
+in `transform`.  Note that we should not have to 
+change `resolve` at all, because we have maintained 
 the properties that a label, if present, is always in the 
-```label``` field and every *kind* except 
-```AsmSrcKind.COMMENT``` takes one memory cell. We just 
-need to add a case to ```transform``` for the new 
+`label` field and every *kind* except 
+`AsmSrcKind.COMMENT` takes one memory cell. We just 
+need to add a case to `transform` for the new 
 *kind*: 
 
 ```python
@@ -1456,7 +1467,7 @@ We can write similar code for the ```predicate``` and
 we will write a separate function ```fix_optionals```:
 
 ```python
-def fix_optional_fields(fields: Dict[str, str]):
+def fix_optional_fields(fields: dict[str, str]):
     """Fill in values of optional fields label,
     predicate, and comment, adding the punctuation
     they require.
@@ -1614,7 +1625,7 @@ holding the address of the current instruction, we have
 everything we need to compute a PC-relative address.  
 
 ```python
-               ref = fields["labelref"]
+                ref = fields["labelref"]
                 mem_addr = labels[ref]
                 pc_relative = mem_addr - address
 ```
@@ -1809,7 +1820,7 @@ Here are test cases to check your work:
             self.assertEqual(squish(transformed[i]), squish(expected[i]))
 ```
 
-This completes the required features of your ```assembler_phase1```.
+This completes the required features of your `assembler_phase1`.
 
 # Postscript
 
@@ -1824,7 +1835,7 @@ the opertion code "LDA".  Whereas "LOAD r1,x" moves the
 value of a memory cell into register 1, "LDA r1,x" would 
 move the address of that memory cell into register 1. 
 
-* An extension to the ```DATA``` pseudo-op to support a 
+* An extension to the `DATA` pseudo-op to support a 
 list of data elements.  Together with the LDA pseudo-op, 
 this would be useful for writing loops that iterate through 
 a sequence of values starting at a named location.  
@@ -1843,7 +1854,7 @@ Few programmers today write much assembly code, but a few do,
 often in small quantities to handle some low-level hardware 
 interface, or a small but critical part of the operating system. 
 If you do find yourself writing assembly code professionally, 
-you will probably use a ```macro assembler``` which not only 
+you will probably use a `macro assembler` which not only 
 translates labels to addresses as we have done here, but also 
 allows you to write your own custom transformations in the 
 form of *macros*.  A macro is something like a function, but 
@@ -1910,9 +1921,9 @@ as it does here in
 	addl	-8(%rbp), %esi
 ```
 
-where ```%esi``` is the target register and ```-8(%rbp)```
+where `%esi` is the target register and ```-8(%rbp)```
 is the memory address (here the offset is -8, so this 
-is like ```%rbp[-8]``` in the notation we have adopted). 
+is like `%rbp[-8]` in the notation we have adopted). 
 
 ## Two-pass algorithms 
 
@@ -1922,8 +1933,8 @@ most challenging part of this project is the idea of a
 *two-pass* algorithm, which gathers information in one loop
 over the data and then uses that information in a second 
 loop over the same data.  In this program, the first pass 
-is ```resolve``` and the second pass is the remainder 
-of ```transform```.   It is very often easier and more 
+is `resolve` and the second pass is the remainder 
+of `transform`.   It is very often easier and more 
 efficient to solve a problem with a two-pass algorithm 
 than with a single "pass" over the data.  I will give you 
 several other small examples to solve with two-pass algorithms, 
@@ -1937,8 +1948,8 @@ later in the assembly code by searching for each label while
 trying transform that reference.  That approach is both more 
 complicated and less efficient, often dramatically so.  
 For example, suppose instead of a separate loop through the 
-lines in the ```resolve``` function, we could have designed 
-the ```transform``` function something like this: 
+lines in the `resolve` function, we could have designed 
+the `transform` function something like this: 
 
 ``` 
 transform(lines) -> instructions: 
@@ -1958,7 +1969,7 @@ This approach, searching for each label individually,
 can take time that is *quadratic* in the length of the 
 assembly language program.  The approach we have taken, 
 with just one extra pass through the assembly code in 
-```resolve```, requires time only linear in the length 
+`resolve`, requires time only linear in the length 
 of the assembly language program.  
 
 
