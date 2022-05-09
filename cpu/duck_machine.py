@@ -26,7 +26,7 @@ def cli() -> object:
     parser = argparse.ArgumentParser(description="Duck Machine Simulator")
     parser.add_argument("objfile", type=argparse.FileType('r'),
                             help="Object file input")
-    parser.add_argument("-d", "--cpu_display", help="Graphical cpu_display",
+    parser.add_argument("-d", "--display", help="Graphical cpu_display",
                         action="store_true")
     parser.add_argument("-s", "--step", help="Single step mode",
                         action="store_true")
