@@ -37,7 +37,7 @@ def parse(srcfile: TextIO) -> expr.Expr:
 #
 #  program ::=  block
 #  block ::= { stmt }
-#  stmt ::=  assign | loop | ifstmt | printstmt
+#  stmt ::=  (assign | loop | ifstmt | printstmt) ';'
 #  whilestmt ::= 'while' rel 'do' block 'od'
 #  ifstmt ::= 'if' rel 'then' block ['else' block] 'fi'
 #  rel ::= exp ('==' | '>=' | '<=' | '<' | '>' ) exp
@@ -96,32 +96,32 @@ def _block(stream: TokenStream) -> expr.Expr:
 
 def _stmt(stream: TokenStream) -> expr.Expr:
     """
-    #  stmt ::=  assign | loop | ifstmt | printstmt
-    assignment ::= IDENT '=' expression ';'
+    #  stmt ::=  (assign | loop | ifstmt | printstmt) ';'
+    assignment ::= IDENT '=' expression
     """
     if stream.peek().kind is TokenCat.WHILE:
-        return _while(stream)
-    if stream.peek().kind is TokenCat.IF:
-        return _if(stream)
-    if stream.peek().kind is TokenCat.PRINT:
-        return _print(stream)
-    if stream.peek().kind is not TokenCat.VAR:
+        node = _while(stream)
+    elif stream.peek().kind is TokenCat.IF:
+        node = _if(stream)
+    elif stream.peek().kind is TokenCat.PRINT:
+        node = _print(stream)
+    elif stream.peek().kind is not TokenCat.VAR:
         raise InputError(f"Expecting identifier at beginning of assignment, got {stream.peek()}")
-    target = expr.Var(stream.take().value)
-    if stream.peek().kind is not TokenCat.ASSIGN:
-        raise InputError(f"Expecting assignment symbol, got {stream.peek()}")
-    stream.take()  # Discard token
-    value = _expr(stream)
-    if stream.peek().kind is not TokenCat.SEMI:
-        raise InputError(f"Expecting semicolon after assignment, got {stream.peek()}")
-    stream.take()  # Discard token
-    return expr.Assign(target, value)
+    else:
+        target = expr.Var(stream.take().value)
+        if stream.peek().kind is not TokenCat.ASSIGN:
+            raise InputError(f"Expecting assignment symbol, got {stream.peek()}")
+        stream.take()  # Discard '=' token
+        value = _expr(stream)
+        node = expr.Assign(target, value)
+    # All statements should end with semicolon
+    require(stream, TokenCat.SEMI, consume=True)
+    return node
 
 def _print(stream: TokenStream) -> expr.Print:
     """printstmt ::= print e ; """
     require(stream, TokenCat.PRINT, consume = True)
     exp = _expr(stream)
-    require(stream, TokenCat.SEMI, consume = True)
     return expr.Print(exp)
 
 

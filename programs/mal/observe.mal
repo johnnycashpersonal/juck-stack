@@ -9,7 +9,7 @@ observe = read;
 while  observe != 0 do
     if watch == observe then
        count = count + 1;
-    fi
+    fi;
     observe = read;
-od
+od;
 print count;
