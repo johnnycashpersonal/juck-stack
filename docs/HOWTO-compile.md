@@ -24,7 +24,7 @@ fact = 1;
 while x > 1 do
     fact = fact * x;
     x = x - 1;
-od
+od;
 print fact;
 ```
 
@@ -56,11 +56,12 @@ observe = read;
 while  observe != 0 do
     if watch == observe then
        count = count + 1;
-    fi
+    fi;
     observe = read;
-od
+od;
 print count;
 ```
+
 ### Input and output
 
 In Mallard, `read` is a special expression that reads an 
@@ -91,7 +92,7 @@ with our calculator project and just added a few things.
 I can run the interpreter like this: 
 
 ```bash
-$ python3 interpreter.py mallard/fact.mal
+$ python3 compiler/interpreter.py programs/mal/fact.mal
 ```
 
 The interpreter will parse my Mallard program (the first 
@@ -137,7 +138,7 @@ a the `gen` method of a `Var` node for variable
     LOAD  r5,x
 ```
 
-and the ```gen``` method of a ```Plus``` node might generate
+and the `gen` method of a `Plus` node might generate
 
 ```
     ADD   r5,r4,r5
@@ -148,12 +149,13 @@ in `expr.py`.  How hard can that be?
 
 ## Tactics for Code Generation 
 
-The Duck Machine is a register-oriented machine.  It can load from 
+The Duck Machine is a register-oriented machine. 
+It can load from 
 memory and store to memory, but all the calculations take values 
 from registers and store values in registers.  Thus, a major part 
 of the job of generating code will be managing registers.  
 
-Aside from register management, the ```gen``` method will be a 
+Aside from register management, the `gen` method will be a 
 lot like the `eval` method.  For example, if we have an expression
 node like `Plus`, we'll generate code for the left-hand operand
 of the addition, then we'll generate code for the right-hand 
@@ -196,7 +198,7 @@ task down into a nice incremental development plan, so we can
 code a little, test a little, code some more, test some more. 
 How can we break off a little bit to get started? 
 
-## The littlest duckling
+## The Littlest Duckling
 
 To build small parts of our compiler, we'll try to build 
 a compiler for a small part of our language.  We do want to have 
@@ -217,12 +219,13 @@ classes.
 
 We noted above that the `gen` methods cannot just print 
 assembly code on the fly, because it needs to come out in an 
-order different than the order in which we call the ```gen``` methods. 
+order different than the order in which we call the `gen` methods. 
+
 In particular, we need to save up the variables and constants 
 and place the corresponding `DATA` lines at the end of the 
 program.  We also need to keep track of the registers in use.  
 We'll create a special kind of *context* object for both kinds
-of record keeping.   In general, the header of a ```gen``` 
+of record keeping.   In general, the header of a `gen` 
 method will look like: 
 
 ```python
@@ -232,6 +235,16 @@ method will look like:
         left in target register.
         """
 ```
+
+Let's add the `gen` method to the abstract base class
+`Expr` in the usual way.  We can make it give a clear
+message about which class we forgot to add a `gen` method
+to, like this: 
+
+```python
+        raise NotImplementedError(f"gen method not defined for class {self.__class__.__name__}")
+```
+        
 
 The `gen` method will not return a value, but will 
 add information to the context object, after passing that 
@@ -243,9 +256,18 @@ generated code should leave a value in.  The context object
 will also provide methods for allocating and deallocating 
 additional registers as needed. 
 
+_Aside_:  Writing code that writes code can be confusing.
+It is not easy to remember that the `gen` method does
+not return a result, but the code that the `gen` method
+generates does return a result (in a Duck Machine register). 
+When I get tangled up, I go back to simple examples, often
+working backward from the result I want, to the code that 
+will produce that result, to the code that will write 
+that code that produces the result I want. I write it down
+on paper, because that is the only way I can keep it straight. 
+
 We'll begin a `codegen_context.py` file in the usual 
-way, with a header comment and logging configuration.  We'll 
-also import the *List* type constructor for type contracts. 
+way, with a header comment and logging configuration.   
 
 ```python
 """
@@ -262,8 +284,6 @@ registers are allocated, how constants and variables
 are declared, when and how the code is actually
 emitted to the output file. 
 """
-
-from typing import List
 
 import logging
 logging.basicConfig()
@@ -284,17 +304,18 @@ the end of the assembly language program.  Those can
 appear in any order as long as they are collectively at the 
 end, but we want just one of them for each variable and for 
 each constant, so they can be represented by dicts. 
+We'll add these to the constructor of Context: 
 
 ```python
         # A table of integer constants to be declared at
         # the end of the source program.  The table maps
         # values to names, so that we can reuse them.
-        self.consts = { }
-        
+        self.consts: dict[str, int] = {}
+    
         # A table of variables to be declared at
         # the end of the source program, with the
-        # symbols used for them in the assembly code. 
-        self.vars = { }
+        # symbols used for them in the assembly code.
+        self.vars: dict[str, str] = {}
 ```
 
 But aside from those declarations, other lines of assembly 
@@ -304,7 +325,7 @@ list and add them to the list in the proper order:
 ```python
         # Instructions in the source code, as a list of
         # strings.
-        self.assm_lines = [ ]
+        self.assm_lines: list[str] = [ ]
 ```
 
 What about registers?  Registers r0 and r15 are special, so 
@@ -321,11 +342,20 @@ reasonable choice.
 
 We'll add some methods to this Context class soon, but it will 
 be easier to think about what they should look like if we start 
-building some ```gen``` methods that use them. 
+building some `gen` methods that use them. 
+
+We'll also need to import this `Context` class into 
+`expr.py`: 
+
+```python
+import context
+from compiler.codegen_context import Context
+```
+
 
 ## IntConst.gen
 
-Recall that our first Mallard program is to be ```x = 7;```. 
+Recall that our first Mallard program is to be `x = 7;`. 
 That will be represented as 
 
 ```python
@@ -333,10 +363,10 @@ Assign(Var(x), IntConst(7))
 ```
 
 So, to generate code for this program, we need to create 
-```gen``` methods for ```IntConst```, ```Var```, and ```Assign```. 
+`gen` methods for `IntConst`, `Var`, and `Assign`. 
 
-We'll start with ```IntConst```.  We said the header of the 
-method should be 
+We'll start with `IntConst`.  We said the header of the 
+`gen` method in `IntConst` should be 
 
 ```python
     def gen(self, context: Context, target: str): 
@@ -350,8 +380,8 @@ So we need to do two things:  Create a DATA line for the
 constant, and create a LOAD instruction to move that 
 constant value into the target register. 
 
-We'll need a method in the ```Context``` class to help 
-us create the DATA line. We won't create it immediately, but 
+We'll need a method in the `Context` class to help 
+us create the DATA line. We won't create the DATA line immediately, but 
 will make a note of the information we will need when it's 
 time to create the DATA line at the end of the program.  Meanwhile, 
 we need to determine what label that DATA line will have, so 
@@ -374,9 +404,9 @@ that we can use it in the LOAD instruction.
 
 What if the constant 42 appears several times in a program?
 We'll generate the same label every time, so we'll have just
-one copy of it in ```self.consts```.  
+one copy of it in `self.consts`.  
 
-This is a start, but we're not done with ```IntConst```.  
+This is a start, but we're not done with `IntConst`.  
 When we use a register constant, we will need to load it's 
 value into a register.  We want *IntConst.gen* to produce
 some code that looks like 
@@ -387,41 +417,34 @@ some code that looks like
 const_42:  DATA  42
 ```
 
-We'll need a method in the ```Context``` object for creating the 
+We'll need a method in the `Context` object for creating the 
 *LOAD* instruction, and we'll need another method for retrieving 
 all the code, including the *DATA* lines at the end.  
 
-First we'll add an instance variable to the ```Context```
-constructor to hold lines 
-like the *LOAD* instruction: 
-
-```python
-        # Instructions in the source code, as a list of
-        # strings.
-        self.assm_lines = [ ]
-```
-
-Then a method for adding the line: 
+We've already created an instance variable `assm_lines`
+in the `Context` object to hold the line of assembly 
+code.  Now we can create a method for adding a line
+to `assm_lines`: 
 
 ```python
     def add_line(self, line: str):
         """Add a line of assembly code"""
         self.assm_lines.append(line)
-        log.debug("Added line, now {}".format(self.assm_lines))
+        log.debug("Added line, now {self.assm_lines}")
 ```
 
-And we'll need a way to retrieve the both the code added by 
-```add_line``` and the *DATA* lines corresponding to 
-the constants we created with ```get_const_symbol```.   
-Retrieving data should not change the state of the ```Context```
-object, so the ```get_lines``` method will begin by making a copy
-of ```assm_lines``` before appending the *DATA* lines. 
+And we'll need a way to retrieve both the code added by 
+`add_line` and the *DATA* lines corresponding to 
+the constants we created with `get_const_symbol`.   
+Retrieving data should not change the state of the `Context`
+object, so the `get_lines` method will begin by making a copy
+of `assm_lines` before appending the *DATA* lines. 
 While the order in which DATA declarations appear is 
 unimportant, it will be easier to write test cases if they 
 appear in a predictable order, so we will sort them. 
 
 ```python
-    def get_lines(self) -> List[str]:
+    def get_lines(self) -> list[str]:
         """Get all the generated source code, including
         declarations of variables and constants.
         """
@@ -429,12 +452,13 @@ appear in a predictable order, so we will sort them.
         for constval in sorted(self.consts):
             code.append(f"{self.consts[constval]}:  DATA {constval}")
         return code
+
 ```
 
 We haven't yet added declarations for variables, but we'll add those shortly. 
 
-With all this, we are finally ready to generate code for the ```IntConst```
-class.  The ```gen``` method of ```IntConst``` should obtain the label of 
+With all this, we are finally ready to generate code for the `IntConst`
+class.  The `gen` method of `IntConst` should obtain the label of 
 the *DATA* line where the constant value will be stored in Duck Machine memory 
 and generate a *LOAD* instruction to move it into the target register: 
 
@@ -461,7 +485,7 @@ we didn't care about some details like spaces.  We have the same
 problem with code generation, where in addition to the number of 
 spaces we don't care about several other things, like the names 
 of labels and the order in which constants appear in the generated 
-code.  We can make use of the ```squish``` function again, but it is 
+code.  We can make use of the `squish` function again, but it is 
 just too much work to create a function to canonicalize *all* of the 
 things we don't care about.  We'll resort to writing very simple unit
 test cases that are dependent on minor details.  When the code 
@@ -477,12 +501,13 @@ For convenience, we'll make `crush` also
 work with a multi-line (triple-quoted) string, which 
 we will then break into a list of lines. The `Union` type
 from the `typing` module lets us say that input argument to 
-`crush` can be either `str` or `List[str]`. 
+`crush` can be either `str` or `list[str]`. 
 
-_Spring 2021 warning: Watch out for the PyCharm
-bug that turns "\n" int "\\n" (and if you
+_Warning: Watch out for PyCharm
+bugs that turn `\n` into `\\n` or vice versa in 
+markdown documents.  And if you
 see FOUR backslashes, you know the bug has
-bitten you)._
+bitten you).
 
 ```python
 """Test Codegen:
@@ -541,8 +566,8 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-Then my test case for the code generator of ```IntConst``` be a little simpler
-by inheriting from ```AsmTestCase```:
+Then my test case for the code generator of `IntConst` be a little simpler
+by inheriting from `AsmTestCase`:
 
 
 ```python
@@ -574,7 +599,7 @@ class Test_IntConst_Gen(AsmTestCase):
 
 That was quite a bit of work just to write and test the code generation 
 for integer constants.  Fortunately a lot of it just needed to be done 
-once.  We aren't completely done with the ```Context```
+once.  We aren't completely done with the `Context`
 class yet, but we're getting close. 
 
 ## Var.gen 
@@ -586,9 +611,9 @@ the *value* of *x*.  But on the left hand side of an
 assignment statement, we don't want the value of *x*.  We 
 just want the name of the location in which to store a new 
 value.  (Bonus trivia:  In compiler construction, this is actually called 
-an *lvalue*.)  So instead of creating the ```gen``` method for class 
-```Var``` now, we'll create an ```lvalue``` method in ```Var```. 
-The ```lvalue``` method will need a method in the ```Context``` 
+an *lvalue*.)  So instead of creating the `gen` method for class 
+`Var` now, we'll create an `lvalue` method in `Var`. 
+The `lvalue` method will need a method in the `Context` 
 object to get the label, very similar to the method we used to 
 get a label for a constant: 
 
@@ -608,7 +633,7 @@ If Mallard had functions or classes with local scopes, we would need
 a more sophisticated way to handle the association of variables with 
 labels.  
 
-Now the ```lvalue``` method of a ```Var``` object can just return the 
+Now the `lvalue` method of a `Var` object can just return the 
 label associated with that variable: 
 
 ```python
@@ -617,11 +642,10 @@ label associated with that variable:
         return context.get_var_symbol(self.name)
 ```
 
-For all other variable references, we will need a ```gen``` method 
-much like the ```gen``` method for ```IntConst```. 
-
-The only difference here is that we are calling ```get_var_symbol```
-(which we have already written!) instead of ```get_const_symbol```, 
+For all other variable references, we will need a `gen` method 
+much like the `gen` method for `IntConst`. 
+The only difference here is that we are calling `get_var_symbol`
+(which we have already written!) instead of `get_const_symbol`, 
 and we are using the variable name instead of the constant value. 
 
 ```python
@@ -635,7 +659,7 @@ and we are using the variable name instead of the constant value.
         return
 ```
 
-We will also need to add the variable declarations to ```Context.getlines```. 
+We will also need to add the variable declarations to `Context.getlines`. 
 It doesn't really matter whether they come before or after the constants, 
 but to make testing easier I'll stipulate that DATA lines for variables 
 come after DATA lines for constants.  I'll leave that to you.  
@@ -661,7 +685,7 @@ class Test_Var_Gen(AsmTestCase):
 ## Assign.gen
 
 We are almost to the point of generating the tiniest real program, 
-```x = 7;```.  We need code for an assignment.  An assignment generates 
+`x = 7;`.  We need code for an assignment.  An assignment generates 
 code for the expression on its right hand side (7, in this case), and 
 stores the value in the variable on its left hand side.  Easy peasy! 
 
@@ -704,9 +728,10 @@ file:
 
 ```python
     context = codegen_context.Context()
-    context.add_line("# Lovingly crafted by the robots of CIS 211, Spring 2019")
-    context.add_line(f"# {datetime.datetime.now()} from {args.sourcefile.name}")
+    context.add_line("# Lovingly crafted by the robots of CIS 211")
+    context.add_line(f"# {datetime.datetime.now()} from {sourcefile.name}")
     context.add_line("#")
+
 ```
 
 and at the end of the program it adds the ```HALT``` instruction before 
@@ -723,8 +748,8 @@ extracting the generated code from the ```Context``` object:
 
 There is just one more thing we need, though:  We need a way to 
  determine which registers to use.  We've already created the list of 
-names of available registers in the ```Context``` object.  We need to create 
-two additional ```Context``` methods to manage them.  They 
+names of available registers in the `Context` object.  We need to create 
+two additional `Context` methods to manage them.  They 
 are very simple ... their code is shorter than their 
 docstrings. 
 
@@ -743,11 +768,11 @@ docstrings.
         self.registers.append(reg_name)
 ```
 
-Now ```compile``` can allocate a register to pass to the ```gen``` method of
+Now `compile` can allocate a register to pass to the ```gen``` method of
 the expression.  Aside from a try/catch block to deal with possible 
-errors, the main logic of ```compile``` simply reads and parses 
-the input to create an ```Expr``` object, allocates a single register, and passes that register 
-name to the ```gen``` method of the ```Expr``` object. 
+errors, the main logic of `compile` simply reads and parses 
+the input to create an `Expr` object, allocates a single register, and passes that register 
+name to the `gen` method of the `Expr` object. 
 
 ```python
         exp = parse(args.sourcefile)
@@ -766,28 +791,44 @@ We can run the compiler on our tiny example program in a
 terminal window: 
 
 ```commandline
-# Lovingly crafted by the robots of CIS 211, Spring 2019
-# 2019-05-27 21:34:12.758372 from mallard/littlest.mal
+$ python3 compiler/compile.py programs/mal/littlest.mal 
+```
+
+Then we should see the assembly code it produces:
+
+```commandline
+# Lovingly crafted by the robots of CIS 211
+# 2022-05-08 19:05:48.954870 from programs/mal/littlest.mal
 #
     LOAD r14,const_7
    STORE  r14,var_x
         HALT  r0,r0,r0
 const_7:  DATA 7
-var_x:   DATA 0
-#Compilation complete
+var_x:  DATA 0
+INFO:__main__:#Compilation complete
+```
+
+That last line that starts with INFO is a log message
+that we can ignore. 
+If we sent the assembly language into a file, it would 
+still appear at the console: 
+
+```commandline
+$ python3 compiler/compile.py programs/mal/littlest.mal programs/asm/littlest.asm
+INFO:__main__:#Compilation complete
 ```
 
 ## Seq.gen
 
 Emboldened by success, we may move on to a program that 
 contains *two* assignment statements, or even *three*. 
-A sequential block of code is represented by a ```Seq```
-node.  We can see that its ```eval``` method simply 
+A sequential block of code is represented by a `Seq`
+node.  We can see that its `eval` method simply 
 executes its left operand and then its right operand. 
 Code generation can work similarly:  Generate code for the 
 left operand, and then for the right operand.  
 
-I will leave ```Seq.gen``` to you.  When you have it, 
+I will leave `Seq.gen` to you.  When you have it, 
 you should be able to compile this tiny Mallard program 
 
 ``` 
@@ -803,9 +844,9 @@ using a terminal window (within or outside of PyCharm)
 like this: 
 
 ```commandline
-$ python3 compile.py mallard/seq.mal 
-# Lovingly crafted by the robots of CIS 211, Spring 2019
-# 2019-05-29 09:06:38.740161 from mallard/seq.mal
+$ python3 compiler/compile.py programs/mal/seq.mal 
+# Lovingly crafted by the robots of CIS 211
+# 2022-05-08 19:17:27.032666 from programs/mal/seq.mal
 #
     LOAD r14,const_7
    STORE  r14,var_x
@@ -815,23 +856,23 @@ $ python3 compile.py mallard/seq.mal
    STORE  r14,var_z
         HALT  r0,r0,r0
 const_7:  DATA 7
-var_x:   DATA 0
-var_y:   DATA 0
-var_z:   DATA 0
-#Compilation complete
+var_x:  DATA 0
+var_y:  DATA 0
+var_z:  DATA 0
+INFO:__main__:#Compilation complete
 ```
 
 ## Binop.gen
 
-For binary operations ```Plus```, ```Minus```, 
-```Div```, and ```Mul```, we can factor out much of the 
-logic of ```gen``` into ```Binop```, much as we did before 
-for the ```eval``` method.  The only difference between 
+For binary operations `Plus`, `Minus`, 
+`Div`, and `Mul`, we can factor out much of the 
+logic of `gen` into `Binop`, much as we did before 
+for the `eval` method.  The only difference between 
 them is that each has its own operation code in 
-the assembly langauge.  In each of the concrete 
+the assembly language.  In each of the concrete 
 classes we can implement a method that returns that 
-operation code.   In ```Binop``` we'll create an abstract
-version of the ```opcode``` method: 
+operation code.   In `Binop` we'll create an abstract
+version of the `opcode` method: 
 
 ```python
     def opcode(self) -> str:
@@ -847,8 +888,8 @@ we will implement it as
         return "ADD"
 ```
 
-Then we can implement ```gen``` in ```Binop``` and inherit 
-it in ```Plus```, ```Minus```, etc: 
+Then we can implement `gen` in `Binop` and inherit 
+it in `Plus`, `Minus`, etc: 
 
 ```python
     def gen(self, context: Context, target: str):
@@ -970,9 +1011,9 @@ q = x - y / z;
 again at the terminal like this: 
 
 ```commandline
-$ python3 compile.py mallard/binops.mal 
-# Lovingly crafted by the robots of CIS 211, Spring 2019
-# 2019-05-29 09:08:02.064640 from mallard/binops.mal
+$ python3 compiler/compile.py programs/mal/binops.mal 
+# Lovingly crafted by the robots of CIS 211
+# 2022-05-08 19:23:11.015294 from programs/mal/binops.mal
 #
     LOAD r14,const_7
    STORE  r14,var_x
@@ -992,11 +1033,11 @@ $ python3 compile.py mallard/binops.mal
    STORE  r14,var_q
         HALT  r0,r0,r0
 const_7:  DATA 7
-var_q:   DATA 0
-var_x:   DATA 0
-var_y:   DATA 0
-var_z:   DATA 0
-#Compilation complete
+var_x:  DATA 0
+var_y:  DATA 0
+var_z:  DATA 0
+var_q:  DATA 0
+INFO:__main__:#Compilation complete
 ```
 
 ## Print.gen
@@ -1012,15 +1053,15 @@ A nice way to gain that confidence is by assembling and
 executing our generated code, and see if it actually 
 prints what we expect it to print.   Right now our 
 programs can't print anything, because we haven't 
-created a code generation method for the ```Print``` 
+created a code generation method for the `Print` 
 class yet.  Let's fix that next. 
 
 In the current model of the Duck Machine, memory address 
-511 is mapped to output.  Code for ```Print``` should 
+511 is mapped to output.  Code for `Print` should 
 store a value to that address: 
 
 ```python
-   def gen(self, context: Context, target: str):
+    def gen(self, context: Context, target: str):
         """We print by storing to the memory-mapped address 511"""
         self.expr.gen(context, target)
         context.add_line(f"   STORE  {target},r0,r0[511]")
@@ -1035,7 +1076,7 @@ y = 8;
 print x + y;  # Should print 15
 ```
 
-again from the terminal command line
+Again from the terminal command line:
 
 ```commandline
 $ python3 compile.py mallard/print.mal 
@@ -1060,15 +1101,15 @@ var_y:   DATA 0
 
 But is it correct?  To find out, we'll save the assembly code 
 to a file, then assemble it, then run it on a Duck 
-Machine.  The details of running these latter steps will depend on the relative paths
-to your projects. 
+Machine.  We can do each of those steps manually, but it is 
+tedious.  Recall the way we created an `asmgo` program
+that combined two phases of assembly language translation plus
+execution.  The `malgo` program similarly combines all three
+of those steps with the compiler. 
 
 ```commandline
-$ python3 compile.py mallard/print.mal mallard/print.asm
-#Compilation complete
-$ python3 ../assembler_2019/assembler_phase1.py mallard/print.asm mallard/print.dasm
-$ python3 ../assembler_2019/assembler_phase2.py mallard/print.dasm mallard/print.obj
-$ python3 ../dm2019/duck_machine.py mallard/print.obj
+$ python3 run/malgo.py programs/mal/print.mal 
+INFO:compiler.compile:#Compilation complete
 Quack!: 15
 Halted
 ```
@@ -1077,7 +1118,7 @@ Halted
 
 We might as well complement the output with input.  It will be 
 very similar, except that it will read a value into the 
-target register by executing a ```LOAD``` instruction from 
+target register by executing a `LOAD` instruction from 
 memory address 510.  I'll leave that to you.  Then we will 
 be able to compile this program: 
 
@@ -1091,14 +1132,11 @@ print x + y;
 We will compile and run the program as before: 
 
 ```commandline
-$ python3 compile.py mallard/read_add_print.mal mallard/read_add_print.asm
-#Compilation complete
-$ python3 ../assembler_2019/assembler_phase1.py mallard/read_add_print.asm mallard/read_add_print.dasm
-$ python3 ../assembler_2019/assembler_phase2.py mallard/read_add_print.dasm mallard/read_add_print.obj
-$ python3 ../dm2019/duck_machine.py mallard/read_add_print.obj
-Quack! Gimme an int! 22
-Quack! Gimme an int! 77
-Quack!: 99
+$ python3 run/malgo.py programs/mal/read_add_print.mal 
+INFO:compiler.compile:#Compilation complete
+Quack! Gimme an int! 5
+Quack! Gimme an int! 3
+Quack!: 8
 Halted
 ```
 
@@ -1126,10 +1164,10 @@ it_is_positive:   # Whew
 ```
 
 We can't use the same label "it_is_positive" every time we generate code for absolute 
-value, so we need yet one more thing from our ```Context``` object:  A source of fresh labels. 
-We'll initialize a counter in the constructor of the ```Context``` class, and provide a 
+value, so we need yet one more thing from our `Context` object:  A source of fresh labels. 
+We'll initialize a counter in the constructor of the `Context` class, and provide a 
 new method that appends a count to some prefix passed to the method.  For example, we
-might call ```context.new_label("it_is_positive")``` and get as a result 
+might call `context.new_label("it_is_positive")` and get as a result 
 "it_is_positive_28".  
 
 ```python
@@ -1184,7 +1222,7 @@ class Test_Unops_Gen(AsmTestCase):
         SUB  r0,r14,r0  # <Abs>
         JUMP/PZ already_positive_1
         SUB r14,r0,r14  # Flip the sign
-        already_positive_1:   # </Abs>
+        stay_positive_1:   # </Abs>
         const_n_3:  DATA -3
         """
         generated = context.get_lines()
@@ -1339,7 +1377,12 @@ for a very simple if/then/else block, compacting it down to a single line.
 
 You will need to fill in code generation for the other comparisons:  NE (not equal), LT (less than), LE (less than 
 or equal, which I prefer to pronounce as "at most"), GT (greater than), and GE (greater than or equal, which 
-I prefer to pronounce as "at least").  Here are some test cases 
+I prefer to pronounce as "at least").  Although `JUMP/PZ'
+is exactly the same as `JUMP/ZP`, let's make testing easier
+by always giving combinations of flags in the order `P`, `Z`, `M`. 
+
+
+Here are some test cases 
 to check them: 
 
 ```python
@@ -1525,7 +1568,7 @@ class Test_Condjump(AsmTestCase):
         LOAD  r14,const_3
         LOAD  r13,const_5
         SUB   r0,r14,r13
-        JUMP/MZ  here_if_true #<=
+        JUMP/ZM  here_if_true #<=
         const_3: DATA 3
         const_5: DATA 5
         """
@@ -1606,7 +1649,7 @@ Now we are really beyond the level where we can look at
 the test case and be convinced that the expected output
 is correct.  Again we can improve our confidence by also 
 executing a small Mallard program.  
- ```countdown.mal``` should 
+ `countdown.mal` should 
 print the integers from 10 to 1: 
 
 ```
@@ -1618,7 +1661,7 @@ x = 10;
 while x do
    print x;
    x = x - 1;
-od
+od;
 ```
 
 If we run it in the interpreter, we get 
@@ -1644,6 +1687,8 @@ use our Duck Machine simulator to execute it, we should get
 almost the same output: 
 
 ```commandline
+$ python3 run/malgo.py programs/mal/countdown.mal 
+INFO:compiler.compile:#Compilation complete
 Quack!: 10
 Quack!: 9
 Quack!: 8
@@ -1661,13 +1706,13 @@ Halted
 ## Pass.gen
 
 Mallard does not have a 'pass' statement, but nonetheless 
-there is a ```Pass``` class in ```expr.py```.   That is 
+there is a `Pass` class in `expr.py`.   That is 
 because we can write an *if* statement with or without 
-an *else* part.  In the ```If``` class, there is always 
-an *else* part, but sometimes it is a ```Pass```
+an *else* part.  In the `If` class, there is always 
+an *else* part, but sometimes it is a `Pass`
 object.  
 
-Code generation for ```Pass``` is simple, as you might 
+Code generation for `Pass` is simple, as you might 
 expect: 
 
 ```python
@@ -1675,7 +1720,7 @@ expect:
         pass
 ```
 
-I am not going to bother writing a unit test case for ```Pass```, 
+I am not going to bother writing a unit test case for `Pass`, 
 but instead we will write test cases for *if* statements 
 with and without *else* clauses. 
 
@@ -1704,7 +1749,7 @@ jump to the *else* part.
  This unit test assumes you use "else" as the prefix for the 
  label of an *else* part and "fi" as the prefix for the label 
  at the end of an *if/else/fi* construct, i.e., you call 
- ```context.new_label("else")``` and ```context.new_label("fi")```. 
+ `context.new_label("else")` and `context.new_label("fi")`. 
  
 ```python
 class Test_If_Gen(AsmTestCase):
@@ -1758,10 +1803,10 @@ while x > 0 do
   remainder = x - 5 * (x / 5);
   if remainder == 0 then
      print x;
-  fi
+  fi;
   x = x - 1;
 
-od
+od;
 ```
 
 When I translate this (through all the stages of compilation and assembly)
@@ -1769,6 +1814,8 @@ to Duck Machine object code, and then run the object code in my Duck
 Machine simulator, I get: 
 
 ```commandline
+$ python3 run/malgo.py programs/mal/fives.mal 
+INFO:compiler.compile:#Compilation complete
 Quack!: 100
 Quack!: 95
 Quack!: 90

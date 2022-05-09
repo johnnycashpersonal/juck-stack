@@ -35,7 +35,6 @@ def cli() -> object:
 
 
 def main(sourcefile: io.FileIO, objfile: io.IOBase):
-    args = cli()
     context = codegen_context.Context()
     context.add_line("# Lovingly crafted by the robots of CIS 211")
     context.add_line(f"# {datetime.datetime.now()} from {sourcefile.name}")

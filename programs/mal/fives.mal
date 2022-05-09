@@ -10,8 +10,8 @@ while x > 0 do
   remainder = x - 5 * (x / 5);
   if remainder == 0 then
      print x;
-  fi
+  fi;
   x = x - 1;
 
-od
+od;
 

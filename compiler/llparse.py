@@ -8,8 +8,9 @@ arithmetic expressions.   I'll describe this more
 in a separate document
 """
 
-from lex import TokenStream, TokenCat
-import expr
+import context
+from compiler.lex import TokenStream, TokenCat
+import compiler.expr as expr
 from typing import TextIO
 import io
 import traceback
