@@ -783,7 +783,7 @@ Instead of unit tests, we can test it by running programs.
 `programs/max.obj` is a good test. 
 
 ```
-$ python3 duck_machine.py programs/max.obj 
+$ python3 cpu/duck_machine.py programs/obj/max.obj 
 Quack! Gimme an int! 5
 Quack! Gimme an int! 18 
 Quack!: 18
@@ -795,7 +795,7 @@ state of the CPU and memory as it executes.  With the -s flag, we
 can "single step" the CPU through execution. 
 
 ```bash
-l$ python3 duck_machine.py programs/max.obj -d -s 
+l$ python3 cpu/duck_machine.py programs/obj/max.obj -d -s 
 Step 0; press enter
 Quack! Gimme an int! 13
 Step 1; press enter
