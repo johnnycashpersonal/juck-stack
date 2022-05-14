@@ -71,7 +71,7 @@ def main(objfile: io.IOBase, display=False, single_step=False):
     log.debug(f"Loading object file {objfile}")
     load(objfile, mem)
     log.debug(f"Loaded, running from start")
-    cpu.run(single_step)
+    cpu.run(single_step=single_step)
     print("Halted")
     if display:
       input("Press enter to end")
