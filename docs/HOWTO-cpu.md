@@ -356,7 +356,7 @@ in which flag letters appear and the number of spaces between
 the opcode and the first operand.)
 
 ```python
-cclass TestInstructionString(unittest.TestCase):
+class TestInstructionString(unittest.TestCase):
     """Check that we can print Instruction objects like assembly language"""
 
     def test_str_predicated_MUL(self):
