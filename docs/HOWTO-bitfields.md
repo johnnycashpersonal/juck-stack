@@ -8,7 +8,7 @@ unpacking those fields into separate objects.
 DM2022 is a 32-bit computer architecture.  Each instruction word is a
 32-bit integer, the registers are 32 bits wide, and memory is
 addressed as a sequence of 32-bit words.  (All but the last of these
-is typical; most modern computers address memory as 8-bit bytes.)
+is common; most modern computers address memory as 8-bit bytes.)
 
 ## Parts
 
@@ -48,10 +48,11 @@ We'll create a module ```bitfield.py```  (and we might as well
 create ```test_bitfield.py``` as well.)  After the header
 docstring for ```bitfield.py```, we'll insert some standard 
 code for making it easy to turn some special logging 
-messages on and off.  These could be useful for debugging. 
+messages on and off.  These could be useful for debugging.
+`bitfield.py` should be created in subfolder `instruction_set`.
 
 ```python
-A bit field is a range of binary digits within an
+"""A bit field is a range of binary digits within an
 unsigned integer.   Bit 0 is the low-order bit,
 with value 1 = 2^0.  Bit 31 is the high-order bit, 
 with value 2^31. 
@@ -60,6 +61,7 @@ A bitfield object is an aid to encoding and decoding
 instructions by packing and unpacking parts of the 
 instruction in different fields within individual 
 instruction words. 
+"""
 
 import logging
 logging.basicConfig()
@@ -132,7 +134,7 @@ class BitField(object):
     """A BitField object extracts specified 
     bitfields from an integer. 
     """
-        def __init__(self, from_bit: int, to_bit: int) -> None: 
+    def __init__(self, from_bit: int, to_bit: int) -> None: 
         """Tool for  extracting bits 
         from_bit ... to_bit, where 0 is the low-order
         bit and 31 is the high-order bit of an unsigned
@@ -343,7 +345,7 @@ class Test_Insert(unittest.TestCase):
 
     def test_insert_low(self):
         """Inserting a few bits in the lowest part of the word. """
-        low_bits = BitField(0,4)
+        low_bits = BitField(0,3)
         self.assertEqual(low_bits.insert(15,0), 15)  # All the bits to 1
         # Slip it in without disturbing higher bits
         self.assertEqual(low_bits.insert(0b1010, 0b1111_0000), 0b1111_1010)
@@ -377,7 +379,7 @@ sign into the full size of an integer.   This is called "sign extension."
 
 Although we are assuming 32-bit integers, Python actually uses an unusual representation of integers to efficiently support integers 
 of any size.  This variable length representation makes sign extension a little 
-bit tricky.  I will provide it for you: 
+bit tricky.  I will provide it for you.
 
 ```python
 def sign_extend(field: int, width: int) -> int:
