@@ -10,7 +10,8 @@ two files:
 
 * ```instr_format.py``` will contain definitions of the fields 
 in the DM2022 instruction word, and a class Instruction to hold 
-a "decoded" instruction.  An `Instruction` object will simply 
+a "decoded" instruction.
+An  `Instruction` object will simply 
 have a separate field (instance variable) for each of the fields 
 in a DM2022 instruction word, plus methods to convert between 
 words (integers) and `Instruction` objects.  While the CPU
@@ -20,7 +21,8 @@ need consistent definitions of the instruction format,
 `instr_format.py` is in the separate `instruction_set` directory,
 along with the `BitField` class. 
 
-* ```cpu.py``` will be the central processing unit of the
+* ```cpu.py``` in the `cpu` subdirectory will be the central processing 
+  unit of the
 DM2022.  It will define an `ALU` class for the arithmetic and logic unit, 
 and a CPU class for the processor of which the ALU is one part.  
 
@@ -500,6 +502,18 @@ class ALU(object):
 I have left a few opcodes for you to fill in. They are 
 very simple! 
 
+Note that the `ALU_OPS` table (dict) is inside the `ALU` class, but 
+not within any method.  In contrast to an _instance variable_ that 
+we might set in the constructor, `ALU_OPS` is a _class variable_ 
+shared by all `ALU` objects.  We can refer to it in a method of
+`ALU` in the the 
+same way we would refer to an instance variable, i.e., `self.ALU_OPS`. We 
+will create only one`ALU` object 
+in model DM2022, but in future when we create multi-core Duck machine 
+CPUs, they can share this single table.  (Our chip engineers, 
+however, have warned us that sharing is more difficult in hardware 
+than in software.)
+
 Execution of each operation is slightly more complicated.  We 
 need to return *two* things:  Not only the result (e.g., 
 the sum of the two operands if the operation code is 
@@ -745,10 +759,24 @@ bits in the instruction).  We'll say the condition is
    
 I will leave implementation of `execute` to you.  Try to 
 figure it out, but then ask questions if you have trouble. 
-To give you a rough idea of what to expect, my `step` method
-implementation is about 40 lines, and about half of those 
-are blank lines, comment lines, and debugging statements 
-(calls to `log.debug("your message here")`).  
+To give you a rough idea of what to expect, I have used between
+20 and 40 lines of code in `step` (including comments and debugging 
+messages) depending on how much I did in each line.  More lines of 
+code, each doing less work, is likely a little easier to debug. 
+
+It is very, very easy to make mistakes in the `step` method (guess 
+how I know).  You must keep several things straight: 
+
+* The register fields in the instrution (`instr.reg_target`,
+`instr.reg_src1`, and `instr.reg_src2`) are _indexes_ of registers 
+  in the `registers` instance variable of CPU.  The index of a 
+  register is not the same as the register, and also not the same as 
+  the value in the register.  Mixing them up will cause bugs! 
+* Similarly, distinguish memory cells from the addresses of memory 
+  cells, and from the values in memory cells.  Since both addresses 
+  and values are represented as integers, it is easy to mix them up. 
+* The offset field is added to the value in the second source 
+  register _before_ executing the ALU operation.
 
 While I'd like to have some nice stand-alone test cases for 
 the `step` method, they are difficult to set up because 
@@ -765,6 +793,7 @@ I'll provide this method so that we can get on with testing:
 
 ```python
     def run(self, from_addr=0,  single_step=False) -> None:
+        """Step the CPU until it executes a HALT"""
         self.halted = False
         self.registers[15].put(from_addr)
         step_count = 0
@@ -795,7 +824,7 @@ state of the CPU and memory as it executes.  With the -s flag, we
 can "single step" the CPU through execution. 
 
 ```bash
-l$ python3 cpu/duck_machine.py programs/obj/max.obj -d -s 
+$ python3 cpu/duck_machine.py programs/obj/max.obj -d -s 
 Step 0; press enter
 Quack! Gimme an int! 13
 Step 1; press enter
