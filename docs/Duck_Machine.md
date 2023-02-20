@@ -20,17 +20,23 @@ Our Duck Machine simulation lacks several features of a more complete or realist
 * The Duck Machine is modeled at the level of instruction set
   architecture (ISA).  We do not model pipelines, caches, or many
   other important parts of the hardware implementation of an ISA.  You
-  will learn about these in CIS 314 (Machine Organization). 
+  can learn about these in CS 314 (Machine Organization). 
 * While most modern computer memories are addressed at the granularity
   of bytes, the RAM memory of the Duck Machine is addressed at the
   granularity of 32-bit words.  
 * The Duck Machine does not support virtual memory. All memory
   addresses are indexes of the (simulated) physical RAM.  You will
   learn about mapping virtual memory addresses to physical memory
-  addresses in CIS 415 (Operating Systems). 
+  addresses in CS 415 (Operating Systems).
 * The Duck Machine does not support asynchronous execution or
   interrupts.  It lacks any protection mechanisms (there is no
   "supervisor mode").  You will also learn more about these in CIS 415. 
+* The Duck Machine has a single CPU core. Most modern processor chips 
+  are _multi-core_, which means essentially that they contain 
+  several copies of the whole CPU on a single chip.  While the 
+  "cores" of a multi-core CPU may share some resources like caches 
+  and connections to buses, they are essentially complete 
+  independent copies of the single CPU core we model. 
 
 Duck Machine projects were introduced many years ago in the 21x series
 by Prof. Amr Sabry, now at Indiana University.  Prof. Arthur Farley
@@ -46,10 +52,11 @@ The Duck Machine architecture is based on the ARM (Advanced Risc Machines) instr
 set architecture to approximately the same extent that The Hobbit is
 based on The Odyssey (with elements drawn also from Beowulf).  The ARM
 processor is found in many small devices including phones and the
-Raspberry Pi computer.
+Raspberry Pi computer.  The A and M-series processors in current 
+Apple devices are also based on the ARM architecture. 
 
 Notable features of the ARM instruction set architecture that have
-been adopted by the DM2018S include: 
+been adopted by the Duck Machine include: 
 
 * A simple load/store architecture (like many reduced instruction set computers). 
 * Uniform treatment of the program counter (PC) as any other general purpose register. 
@@ -103,13 +110,13 @@ P, and V and execute the instruction only if ((mM and M) or (mZ and Z)
 or (mP or P) or (mV or V)).  Note that if all four mask bits are 1,
 the instruction will always be executed, and an instruction with all
 mask bits 0 will never be executed.
-* 20..23 (4 bits) index of target register (where the result of an
+* 18..21 (4 bits) index of target register (where the result of an
 operation should be stored).  Note that if the target register is r0
 (ZERO), the result is effectively discarded, but the condition codes
 are still set.  Also, if the target register is r15, also known as PC,
 the instruction is effectively a control flow jump. 
-* 18..21 (4 bits) index of first source register
-* 14..17 (4 bits) index of the second source register
+* 14..17 (4 bits) index of first source register
+* 10..13 (4 bits) index of the second source register
 * 0..9 (10 bits) a displacement, interpreted as a *signed* 10 bit
   twos-complement integer ranging from -512 (-2^9) to 511 (2^9 - 1).
 

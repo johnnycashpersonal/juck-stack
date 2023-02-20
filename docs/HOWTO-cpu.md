@@ -195,14 +195,14 @@ Note that the values we have chosen are powers of two.
 This is no accident! They 
 correspond to bit positions in the condition code. 
 
-| Flag  | Decimal value   | 4-bit binary |
-| ------|-----------------|--------------|
-|M      | 1  = 2<sup>0</sup> | 0001 |
-|Z      | 2  = 2<sup>1</sup> | 0010 |
-|P      | 2  = 2<sup>2</sup> | 0100 | 
-|V      | 8 = 2<sup>3</sup>  | 1000 |
-|NEVER  | 0                  | 0000 |
-|ALWAYS | 15                 | 1111 |
+| Flag   | Decimal value      | 4-bit binary |
+|--------|--------------------|--------------|
+| M      | 1  = 2<sup>0</sup> | 0001         |
+| Z      | 2  = 2<sup>1</sup> | 0010         |
+| P      | 4  = 2<sup>2</sup> | 0100         | 
+| V      | 8 = 2<sup>3</sup>  | 1000         |
+| NEVER  | 0                  | 0000         |
+| ALWAYS | 15                 | 1111         |
 
 A single *CondFlag* object can include more than one of 
 these flag values using bitwise logical operations, e.g.,
@@ -837,7 +837,7 @@ Step 5; press enter
 Halted
 Press enter to end
 ```
-![CPU state display](cpu-state.png)
+![CPU state display](img/cpu-state.png)
 
 
 ## Hints (Fixing Common Problems)
