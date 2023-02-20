@@ -62,6 +62,8 @@ class Memory(MVCListenable):
 
     def put(self, index: int, value: int) -> None:
         """Store a word into memory"""
+        assert isinstance(index, int), "Memory address must be an int"
+        assert isinstance(value, int), f"Cannot store a {value.__class__.__name__} into memory, only int"
         self._check_bounds(index)
         log.debug("Storing value {} at memory address {}".format(value, index))
         self._mem[index] = value
