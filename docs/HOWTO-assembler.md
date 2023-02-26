@@ -511,8 +511,7 @@ We understand now what `fields` should be, and we
 already looked at its header and saw that it parses a 
 single line of assembly language, which could be just a 
 comment, or the representation of some data, or a
-complete  
-assembly language instruction (possibly with a couple of 
+complete assembly language instruction (possibly with a couple of 
 elisions that `fill_defaults` will fill in). 
 We'll need to parse assembly language as well, so we need to 
 dive into `parse_line` to see how it works. 
@@ -1081,7 +1080,7 @@ language program and prints it without changes.  We can test this
 by running it on a .dasm file from the programs directory: 
 
 ```bash
- python3 assembler_phase1.py programs/fact.dasm
+ python3 asm/assembler_phase1.py programs/asm/fact.asm
 ```
 
 We will notice one problem:  Since the `lines` list
@@ -1308,7 +1307,8 @@ place `test_assembler_phase1.py` in the `tests` directory.
 """Unit tests for assembler phase 1"""
 
 import unittest
-from assembler_phase1 import *
+import context
+from asm.assembler_phase1 import *
 
 class TestResolve(unittest.TestCase):
 
