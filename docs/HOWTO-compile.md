@@ -4,7 +4,7 @@ It will be hard to sell a large number of Duck Machine computers
 if we can only program it in assembly language.  We need a 
 higher level language for it.  But building a Python compiler
 or interpreter for it would be a lot of work ... maybe too
-much even for awesome CIS 211 students to accomplish in a week. 
+much even for awesome CS 211 students to accomplish in a week. 
 
 Also, since our Duck Machine can only 
 input and print integers, it might be better to create a simple 
@@ -37,7 +37,7 @@ It has loops and if statements with arithmetic comparisons like
 ### Control flow: while and if
 
 The 'while' loop in Mallard is 'while *comparison* do *block* od', 
-where *comparison* is an arithmetic comparison like `==`, `<=', 
+where *comparison* is an arithmetic comparison like `==`, `<=`, 
 `>`, etc.
  and *block* is a sequence of statements. 
 
@@ -67,8 +67,7 @@ print count;
 In Mallard, `read` is a special expression that reads an 
 integer value from the keyboard and returns that value. 
 
-`print` is not an expression but a kind of statement.  
-`print *expr*`
+`print` is not an expression but a kind of statement. `print *expr*` 
 causes the value of expression *expr* to be printed. 
 
 3D graphics and virtual reality are not yet supported in Mallard. 
@@ -85,7 +84,7 @@ The Mallard interpreter builds an *abstract syntax tree* to
 represent a Mallard program, and then evaluates that tree. 
 In other words, it is almost like our calculator program 
 except that it reads a whole file instead of a single 
-line, and it has a few more kinds of nodes (e.g., for 
+line.  It has a few more kinds of nodes (e.g., for 
 *if* statements and for input and output).  In fact I started 
 with our calculator project and just added a few things. 
 
@@ -117,7 +116,7 @@ program and writes an equivalent Duck Machine assembly language program.
 Such translators are called *compilers* for historical 
 reasons.   Technically our translator is a *cross-compiler*, since we 
 run the translator on one kind of computer to produce machine code 
-for a different kind of computer (the Duck machine).   
+for a different kind of computer (the Duck Machine).   
 
 This should be easy!  Our Mallard programs are limited to 
 integers, and our Duck Machine can compute with integers. 
@@ -503,11 +502,11 @@ we will then break into a list of lines. The `Union` type
 from the `typing` module lets us say that input argument to 
 `crush` can be either `str` or `list[str]`. 
 
-_Warning: Watch out for PyCharm
+_Warning:_ Watch out for PyCharm
 bugs that turn `\n` into `\\n` or vice versa in 
-markdown documents.  And if you
+markdown documents.  If you
 see FOUR backslashes, you know the bug has
-bitten you).
+bitten you.
 
 ```python
 """Test Codegen:
@@ -521,8 +520,8 @@ build up the full code generator.
 """
 
 import unittest
-from expr import *
-from codegen_context import Context
+from compiler.expr import *
+from compiler.codegen_context import Context
 from typing import List, Union
 
 
@@ -551,6 +550,7 @@ def crush(text: Union[str, List[str]]) -> List[str]:
     return crushed
 
 class AsmTestCase(unittest.TestCase):
+    """Abstract base class for tests of assembly code generation"""
 
     def codeEqual(self, generated: List[str], expected: str) -> bool:
         gen = crush(generated)
@@ -610,9 +610,16 @@ of the assignment, we would want to generate code to get
 the *value* of *x*.  But on the left hand side of an 
 assignment statement, we don't want the value of *x*.  We 
 just want the name of the location in which to store a new 
-value.  (Bonus trivia:  In compiler construction, this is actually called 
-an *lvalue*.)  So instead of creating the `gen` method for class 
-`Var` now, we'll create an `lvalue` method in `Var`. 
+value.(Bonus trivia:  In compiler construction, this is actually called 
+an *lvalue*.)  
+
+![For variables we need l-values (names of locations, which we can 
+use in STORE instructions) as 
+well as r-values (the values held in variables, which we can LOAD)](
+img/lvalue-rvalue.png)
+
+So in addition to creating the `gen` method for class 
+`Var` now, we'll create an `lvalue` method in `Var`.
 The `lvalue` method will need a method in the `Context` 
 object to get the label, very similar to the method we used to 
 get a label for a constant: 
@@ -1079,7 +1086,7 @@ print x + y;  # Should print 15
 Again from the terminal command line:
 
 ```commandline
-$ python3 compile.py mallard/print.mal 
+$ python3 compiler/compile.py programs/mal/print.mal 
 # Lovingly crafted by the robots of CIS 211, Spring 2019
 # 2019-05-29 09:10:09.925726 from mallard/print.mal
 #
@@ -1222,7 +1229,7 @@ class Test_Unops_Gen(AsmTestCase):
         SUB  r0,r14,r0  # <Abs>
         JUMP/PZ already_positive_1
         SUB r14,r0,r14  # Flip the sign
-        stay_positive_1:   # </Abs>
+        already_positive_1:   # </Abs>
         const_n_3:  DATA -3
         """
         generated = context.get_lines()
@@ -1263,7 +1270,7 @@ loop head, to implement the looping control flow:
 
 We will implement this in two parts.  The comparison operation 
 classes will take care of conditional branching, and the `While`
-class will be in charge of the overall pattern for the loop.  
+class will be in charge of the overall pattern for the loop.
 (This way we will be able to re-use the conditional branching 
 logic for *if* statements.) 
 
