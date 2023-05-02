@@ -164,7 +164,7 @@ instruction may be executed or skipped depending on what
 happened in the prior instruction.  The CPU contains 
 a *condition register* that records information about 
 the result of the prior ALU operation:  Was it zero, positive, 
-negative, or an "overflow" (e.g., division by zero).  
+negative, or an "overflow" (e.g., division by zero)?  
 Each instruction contains a set of bits that are identical 
 in format to the condition register. If any of the 
 conditions specified in the `cond` field of the instruction 
@@ -215,18 +215,21 @@ of the bits are one.
 
 When we print *CondFlag* objects, we would rather not see a 
 value like 13 and have to figure out that it must be
-a combnation of the *M*, *P*, and *V* flags.  We'll define a 
+a combination of the *M*, *P*, and *V* flags.  We'll define a 
 ```__str__``` method that produces a nicer printed format. 
 
 ```python
     def __str__(self):
-        """
-        If the exact combination has a name, we return that.
+        """If the exact combination has a name, we return that.
         Otherwise, we combine bits, e.g., ZP for non-negative.
         """
-        for i in CondFlag:
-            if i is self:
+        for i in CondFlag.__members__.values():
+            # Note: Since Python 3.11, the iterator for a Flag does not return
+            # "alias members" like ALWAYS, which is why we need __members__.values()
+            # to iterate all named flag values including ALWAYS and NEVER.
+            if self.value == i.value:
                 return i.name
+
         # No exact alias; give name as sequence of bit names
         bits = []
         for i in CondFlag:
