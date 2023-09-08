@@ -17,6 +17,7 @@ class Register(object):
         self._value = value
 
 
+
 class ZeroRegister(Register):
     """A register whose value can never change"""
     def put(self, value) -> None:
