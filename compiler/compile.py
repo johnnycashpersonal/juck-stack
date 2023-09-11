@@ -19,8 +19,7 @@ import sys
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
-
+log.setLevel(logging.INFO)
 
 def cli() -> object:
     """Get arguments from command line"""

@@ -58,7 +58,7 @@ import re
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 # Configuration constants
 ERROR_LIMIT = 15    # Abandon assembly if we exceed this

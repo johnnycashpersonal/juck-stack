@@ -208,6 +208,12 @@ class Neg(UnOp):
 
     def _apply(self, left: int) -> int:
         return 0 - left
+    
+    def gen(self, context: Context, target: str):
+        self.left.gen(context, target) #first gen code for left operand
+        # Now, negate the value in the target register.
+        # Subtract the value in the target register from 0.
+        context.add_line(f"    SUB  {target},r0,{target}  # Flip the sign")
 
 
 class Abs(UnOp):
@@ -219,6 +225,19 @@ class Abs(UnOp):
 
     def _apply(self, left: int) -> int:
         return abs(left)
+    
+    def new_label(self, prefix: str) -> str:
+        """Return a unique label starting with prefix"""
+        self.label_count += 1
+        return f"{prefix}_{self.label_count}"
+    
+    def gen(self, context: Context, target: str):
+        self.left.gen(context, target)
+        pos = context.new_label("already_positive")
+        context.add_line(f"    SUB  r0,{target},r0  # <Abs>")
+        context.add_line(f"    JUMP/PZ {pos}")
+        context.add_line(f"    SUB {target},r0,{target}  # Flip the sign")
+        context.add_line(f"{pos}:   # </Abs>")
 
 class Var(Expr):
 
@@ -254,7 +273,6 @@ class Var(Expr):
         context.add_line(f"    LOAD {target},{label}")
         return
 
-
 class Assign(Expr):
     """Assignment:  x = E represented as Assign(x, E)"""
 
@@ -280,7 +298,6 @@ class Assign(Expr):
         self.right.gen(context, target)
         context.add_line(f"   STORE  {target},{loc}")
 
-
 class Control(Expr):
     """Control flow nodes (while, if, ...).
     Control flow constructs have one or more blocks of statements
@@ -295,7 +312,6 @@ class Control(Expr):
     # abstract methods, but that's because Control is itself an
     # abstract base class ... the abstract methods should be implemented
     # in its subclasses.
-
 
 class Seq(Control):
     """exp ; exp"""
@@ -325,7 +341,6 @@ class Seq(Control):
 
         #This works better, We have very simple programs so this should work, but it's suboptimal in terms of freeing and storing values in registers.
 
-
 class Print(Control):
     """Print a value.  Returns the value."""
 
@@ -353,6 +368,7 @@ class Read(Expr):
     """Read a value from input"""
 
     def __init__(self):
+        "i think this will let read work"
         pass
 
     def __str__(self):
@@ -364,7 +380,10 @@ class Read(Expr):
     def eval(self) -> IntConst:
         val = input("Quack! Gimme an int! ")
         return IntConst(int(val))
-
+    
+    def gen(self, context: Context, target: str):
+        """We read by loading to the memory-mapped address 510"""
+        context.add_line(f"   LOAD  {target},r0,r0[510]")
 
 class Comparison(Control):
     """A relational operation that may yield 'true' or 'false',
@@ -384,13 +403,16 @@ class Comparison(Control):
     conditions, because it is jumping to the 'else' branch
     or out of the loop.)
     """
-    def __init__(self, left: Expr, right: Expr):
+    def __init__(self, left: Expr, right: Expr,
+                 opsym: str, cond_code_true: str, cond_code_false: str):
         self.left = left
         self.right = right
+        self.opsym = opsym
+        self.cond_code_true = cond_code_true
+        self.cond_code_false = cond_code_false
 
     def __str__(self) -> str:
-        # Fix this up when you implement code generation
-        return f"{str(self.left)} <comparison> {str(self.right)}"
+        return f"{str(self.left)} {self.opsym} {str(self.right)}"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({repr(self.left)}, {repr(self.right)})"
@@ -408,41 +430,72 @@ class Comparison(Control):
         right_val = self.right.eval()
         return IntConst(self._apply(left_val.value, right_val.value))
 
+    def gen(self, context: Context, target: str):
+        """We don't support using relational operators to
+        produce a value (although it would be easy to add).
+        """
+        raise NotImplementedError("Relational operators do not support 'gen'; try 'condjump'")
+
+    def condjump(self, context: Context, target: str, label: str, jump_cond: bool = True):
+        """Generate jump to label conditional on relation. """
+        self.left.gen(context, target)
+        reg = context.allocate_register()
+        self.right.gen(context, reg)
+        if jump_cond:
+            cond = self.cond_code_true
+        else:
+            cond = self.cond_code_false
+        # All relations are implemented by subtraction.  What varies is
+        # the condition code controlling the jump.
+        context.add_line(f"   SUB  r0,{target},{reg}")
+        context.add_line(f"   JUMP/{cond}  {label}  #{self.opsym}")
+        context.free_register(reg)
 
 class EQ(Comparison):
     """left == right"""
+    def __init__(self, left: Expr, right: Expr):
+        super().__init__(left, right, "==", "Z", "PM")
 
     def _apply(self, left: int, right: int) -> int:
         return 1 if left == right else 0
 
 class NE(Comparison):
     """left != right"""
+    def __init__(self, left: Expr, right: Expr):
+        super().__init__(left, right, "!=", "PM", "Z")
 
     def _apply(self, left: int, right: int) -> int:
         return 1 if left != right else 0
 
 class GT(Comparison):
     """left > right"""
+    def __init__(self, left: Expr, right: Expr):
+        super().__init__(left, right, ">", "P", "ZM")
 
     def _apply(self, left: int, right: int) -> int:
         return 1 if left > right else 0
 
 class GE(Comparison):
     """left >= right"""
+    def __init__(self, left: Expr, right: Expr):
+        super().__init__(left, right, ">=", "PZ", "M")
 
     def _apply(self, left: int, right: int) -> int:
         return 1 if left >= right else 0
 
 class LT(Comparison):
+    def __init__(self, left: Expr, right: Expr):
+        super().__init__(left, right, "<", "M", "PZ")
 
     def _apply(self, left: int, right: int) -> int:
         return 1 if left < right else 0
 
 class LE(Comparison):
+    def __init__(self, left: Expr, right: Expr):
+        super().__init__(left, right, "<=", "ZM", "P")
 
     def _apply(self, left: int, right: int) -> int:
         return 1 if left <= right else 0
-
 
 class While(Control):
     """Classic while loop."""
@@ -469,6 +522,16 @@ class While(Control):
             last = self.expr.eval()
             cond_val = self.cond.eval()
         return last
+    
+    def gen(self, context: Context, target: str):
+        """Looping"""
+        loop_head = context.new_label("while_do")
+        loop_exit = context.new_label("od")
+        context.add_line(f"{loop_head}:")
+        self.cond.condjump(context, target, loop_exit, jump_cond=False)
+        self.expr.gen(context, target)
+        context.add_line(f"   JUMP  {loop_head}")
+        context.add_line(f"{loop_exit}:")
 
 class Pass(Control):
     """
@@ -489,6 +552,9 @@ class Pass(Control):
     def eval(self) -> IntConst:
         """Does nothing, has no value."""
         return NO_VALUE
+    
+    def gen(self, context: Context, target: str):
+        pass
 
 
 class If(Control):
@@ -514,6 +580,24 @@ class If(Control):
         else:
             result = self.elsepart.eval()
         return result
+    
+    def gen(self, context: Context, target: str):
+        # Generate labels for 'else' and 'fi' (end of if/else/fi)
+        else_label = context.new_label("else")
+        fi_label = context.new_label("fi")
 
+        # Step 1: Test the condition and jump to 'else' part if false
+        self.cond.condjump(context, target, else_label, jump_cond=False)
 
+        # Step 2: Generate code for the 'then' part
+        self.thenpart.gen(context, target)
 
+        # Step 3: Jump to the end (fi)
+        context.add_line(f"    JUMP  {fi_label}")
+
+        # Step 4: Generate the 'else' label and code for the 'else' part
+        context.add_line(f"{else_label}:")
+        self.elsepart.gen(context, target)
+
+        # Step 5: Generate the 'fi' label (end of if/else/fi)
+        context.add_line(f"{fi_label}:")

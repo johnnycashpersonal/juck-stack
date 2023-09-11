@@ -35,6 +35,8 @@ class Context(object):
         # The available registers
         self.registers = [ f"r{i}" for i in range(1,15)]
 
+        self.label_count = 0
+
     def get_const_symbol(self, value: int) -> str:
         """Returns the name of the label associated
         with a constant value, and remembers to
@@ -89,3 +91,8 @@ class Context(object):
         available registers. 
         """
         self.registers.append(reg_name)
+
+    def new_label(self, prefix: str) -> str:
+        """Return a unique label starting with prefix"""
+        self.label_count += 1
+        return f"{prefix}_{self.label_count}"

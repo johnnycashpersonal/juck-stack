@@ -1,16 +1,40 @@
 # with love, from JMo <3
-# 2023-09-10 21:11:22.887574 from programs/mal/print.mal
+# 2023-09-11 00:20:49.948557 from programs/mal/fives.mal
 #
-       LOAD      r12,r0,r15[9] #const_7      
-       STORE      r12,r0,r15[10] #var_x      
-       LOAD      r13,r0,r15[8] #const_8      
-       STORE      r13,r0,r15[9] #var_y      
-       LOAD      r14,r0,r15[7] #var_x      
-       LOAD      r12,r0,r15[7] #var_y      
-   ADD  r14,r14,r12
-   STORE  r14,r0,r0[511]
+       LOAD      r13,r0,r15[30] #const_100      
+       STORE      r13,r0,r15[31] #var_x      
+while_do_1:
+       LOAD      r14,r0,r15[30] #var_x      
+       LOAD      r12,r0,r15[24] #const_0      
+   SUB  r0,r14,r12
+       ADD/ZM r15,r0,r15[21] #od_2  #>
+       LOAD      r11,r0,r15[26] #var_x      
+       LOAD      r10,r0,r15[22] #const_5      
+       LOAD      r9,r0,r15[24] #var_x      
+       LOAD      r8,r0,r15[20] #const_5      
+   DIV  r9,r9,r8
+   MUL  r10,r10,r9
+   SUB  r11,r11,r10
+       STORE      r11,r0,r15[18] #var_remainder      
+       LOAD      r12,r0,r15[17] #var_remainder      
+       LOAD      r10,r0,r15[12] #const_0      
+   SUB  r0,r12,r10
+       ADD/PM r15,r0,r15[4] #else_3  #==
+       LOAD      r12,r0,r15[14] #var_x      
+   STORE  r12,r0,r0[511]
+       ADD     r15,r0,r15[1] #fi_4      
+else_3:
+fi_4:
+       LOAD      r14,r0,r15[11] #var_x      
+       LOAD      r11,r0,r15[6] #const_1      
+   SUB  r14,r14,r11
+       STORE      r14,r0,r15[8] #var_x      
+       ADD     r15,r0,r15[-23] #while_do_1      
+od_2:
 	HALT  r0,r0,r0
-const_7:  DATA 7
-const_8:  DATA 8
+const_0:  DATA 0
+const_1:  DATA 1
+const_5:  DATA 5
+const_100:  DATA 100
+var_remainder: DATA 0
 var_x: DATA 0
-var_y: DATA 0

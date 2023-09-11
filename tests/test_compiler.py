@@ -187,5 +187,300 @@ class Test_Binops_Gen(AsmTestCase):
         generated = context.get_lines()
         self.codeEqual(generated, expected)
 
+class Test_Unops_Gen(AsmTestCase):
+    """Unary operations Neg and Abs"""
+
+    def test_neg_gen(self):
+        context = Context()
+        target = context.allocate_register()
+        e = Neg(IntConst(8))
+        e.gen(context, target)
+        expected = """
+        LOAD r14,const_8
+        SUB  r14,r0,r14 # Flip the sign 
+        const_8: DATA 8
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+
+    def test_abs_gen(self):
+        context = Context()
+        target = context.allocate_register()
+        e = Abs(IntConst(-3))
+        e.gen(context, target)
+        expected = """
+        LOAD r14,const_n_3
+        SUB  r0,r14,r0  # <Abs>
+        JUMP/PZ already_positive_1
+        SUB r14,r0,r14  # Flip the sign
+        already_positive_1:   # </Abs>
+        const_n_3:  DATA -3
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+class Test_Condjump(AsmTestCase):
+
+    def test_EQ_iftrue(self):
+        """==, jump if true"""
+        context = Context()
+        target = context.allocate_register()
+        e = EQ(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_true")
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/Z  here_if_true #==
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_EQ_iffalse(self):
+        """==, jump if false"""
+        context = Context()
+        target = context.allocate_register()
+        e = EQ(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_false", jump_cond=False)
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/PM  here_if_false #==
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_NE_iftrue(self):
+        """!=, jump if true"""
+        context = Context()
+        target = context.allocate_register()
+        e = NE(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_true")
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/PM  here_if_true #!=
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_NE_iffalse(self):
+        """!=, jump if false"""
+        context = Context()
+        target = context.allocate_register()
+        e = NE(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_false", jump_cond=False)
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/Z  here_if_false #!=
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_GT_iftrue(self):
+        """>, jump if true"""
+        context = Context()
+        target = context.allocate_register()
+        e = GT(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_true")
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/P  here_if_true #>
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_GT_iffalse(self):
+        """>, jump if false"""
+        context = Context()
+        target = context.allocate_register()
+        e = GT(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_false", jump_cond=False)
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/ZM  here_if_false #>
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_GE_iftrue(self):
+        """>=, jump if true"""
+        context = Context()
+        target = context.allocate_register()
+        e = GE(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_true")
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/PZ  here_if_true #>=
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_GE_iffalse(self):
+        """>=, jump if false"""
+        context = Context()
+        target = context.allocate_register()
+        e = GE(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_false", jump_cond=False)
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/M  here_if_false #>=
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_LT_iftrue(self):
+        """<, jump if true"""
+        context = Context()
+        target = context.allocate_register()
+        e = LT(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_true")
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/M  here_if_true #<
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_LT_iffalse(self):
+        """>=, jump if false"""
+        context = Context()
+        target = context.allocate_register()
+        e = LT(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_false", jump_cond=False)
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/PZ  here_if_false #<
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_LE_iftrue(self):
+        """<=, jump if true"""
+        context = Context()
+        target = context.allocate_register()
+        e = LE(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_true")
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/ZM  here_if_true #<=
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+    def test_LE_iffalse(self):
+        """>=, jump if false"""
+        context = Context()
+        target = context.allocate_register()
+        e = LE(IntConst(3), IntConst(5))
+        e.condjump(context, target, "here_if_false", jump_cond=False)
+        expected = """
+        LOAD  r14,const_3
+        LOAD  r13,const_5
+        SUB   r0,r14,r13
+        JUMP/P  here_if_false #<=
+        const_3: DATA 3
+        const_5: DATA 5
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+class Test_While_Gen(AsmTestCase):
+
+    def test_while_gen(self):
+        context = Context()
+        target = context.allocate_register()
+        e = While(EQ(Var("x"), Var("x")), Assign(Var("x"), Minus(Var("x"), IntConst(1))))
+        e.gen(context, target)
+        expected = """
+        while_do_1: 
+        LOAD  r14,var_x
+        LOAD  r13,var_x
+        SUB  r0,r14,r13
+        JUMP/PM  od_2    #==
+        LOAD  r14,var_x
+        LOAD  r13,const_1
+        SUB   r14,r14,r13
+        STORE r14,var_x
+        JUMP  while_do_1
+        od_2: 
+        const_1: DATA 1
+        var_x: DATA 0
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
+class Test_If_Gen(AsmTestCase):
+
+    def test_if_gen(self):
+        context = Context()
+        target = context.allocate_register()
+        e = If(EQ(Var("x"), IntConst(1)),
+               Assign(Var("y"), Minus(Var("x"), IntConst(1))),
+               Assign(Var("x"), IntConst(2)))
+        e.gen(context, target)
+        expected = """
+        LOAD  r14,var_x
+        LOAD  r13,const_1
+        SUB  r0,r14,r13
+        JUMP/PM  else_1 #==
+        LOAD  r14,var_x
+        LOAD  r13,const_1
+        SUB   r14,r14,r13
+        STORE r14,var_y
+        JUMP  fi_2
+        else_1: 
+        LOAD r14,const_2
+        STORE r14,var_x 
+        fi_2: 
+        const_1: DATA 1
+        const_2: DATA 2
+        var_x: DATA 0
+        var_y: DATA 0
+        """
+        generated = context.get_lines()
+        self.codeEqual(generated, expected)
+
 if __name__ == "__main__":
     unittest.main()
