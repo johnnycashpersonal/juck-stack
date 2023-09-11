@@ -318,9 +318,13 @@ class Seq(Control):
     
     def gen(self, context: Context, target:str):
         """Generating code for the left and right expressions"""
-        temp_target = "r0" #as a temp register
+        temp_target = context.allocate_register() #as a temp register
         self.left.gen(context, temp_target) #since we discard the left expression value
         self.right.gen(context, target)
+        context.free_register(temp_target)
+
+        #This works better, We have very simple programs so this should work, but it's suboptimal in terms of freeing and storing values in registers.
+
 
 class Print(Control):
     """Print a value.  Returns the value."""
@@ -344,7 +348,6 @@ class Print(Control):
         """We print by storing to the memory-mapped address 511"""
         self.expr.gen(context, target)
         context.add_line(f"   STORE  {target},r0,r0[511]")
-
 
 class Read(Expr):
     """Read a value from input"""

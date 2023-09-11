@@ -87,6 +87,12 @@ class Test_Var_Gen(AsmTestCase):
         generated = context.get_lines()
         self.codeEqual(generated, expected)
 
+class Test_Val_Store(AsmTestCase):
+    """Testing STORE OpCode"""
+
+    def test_store(self):
+
+
 class Test_Assign_Gen(AsmTestCase):
     "Generating code for Variable reference (rvalue)"
 
@@ -150,7 +156,6 @@ class Test_Binops_Gen(AsmTestCase):
         """
         generated = context.get_lines()
         self.codeEqual(generated, expected)
-
 
     def test_div_gen(self):
         context = Context()
