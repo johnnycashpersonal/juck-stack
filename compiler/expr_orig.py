@@ -2,6 +2,9 @@
 Originally for a calculator, expanded for a compiler.
 """
 
+import context
+from compiler.codegen_context import Context
+
 # Global variable NO_VALUE is defined below after IntConst
 
 # One global environment (scope) for
@@ -58,6 +61,15 @@ class IntConst(Expr):
 
     def __eq__(self, other: Expr):
         return isinstance(other, IntConst) and self.value == other.eval().value
+    
+    def gen(self, context: Context, target: str):
+        """Generate code into the context object.
+        Result of expression evaluation will be
+        left in target register.
+        """
+        label = context.get_const_symbol(self.value)
+        context.add_line(f"    LOAD {target},{label}")
+        return
 
 
 # Globals should normally go at the beginning of the file, but we needed
@@ -97,6 +109,13 @@ class BinOp(Expr):
     def _opcode(self) -> str:
         """Which operation code do we use in the generated assembly code?"""
         raise NotImplementedError("Each binary operator should define the _opcode method")
+    
+    def gen(self, context: Context, target: str):
+        self.left.gen(context, target)
+        reg = context.allocate_register()
+        self.right.gen(context, reg)
+        context.add_line(f"   {self._opcode()}  {target},{target},{reg}")
+        context.free_register(reg)
 
 
 class Plus(BinOp):
@@ -108,6 +127,9 @@ class Plus(BinOp):
 
     def _apply(self, left: int, right: int) -> int:
         return left + right
+    
+    def _opcode(self) -> str:
+        return "ADD"
 
 
 class Minus(BinOp):
@@ -119,6 +141,9 @@ class Minus(BinOp):
 
     def _apply(self, left: int, right: int) -> int:
         return left - right
+    
+    def _opcode(self) -> str:
+        return "SUB"
 
 
 class Times(BinOp):
@@ -130,6 +155,9 @@ class Times(BinOp):
 
     def _apply(self, left: int, right: int) -> int:
         return left * right
+    
+    def _opcode(self) -> str:
+        return "MUL"
 
 
 class Div(BinOp):
@@ -141,6 +169,9 @@ class Div(BinOp):
 
     def _apply(self, left: int, right: int) -> int:
         return left // right
+    
+    def _opcode(self) -> str:
+        return "DIV"
 
 
 class UnOp(Expr):
@@ -189,7 +220,6 @@ class Abs(UnOp):
     def _apply(self, left: int) -> int:
         return abs(left)
 
-
 class Var(Expr):
 
     def __init__(self, name: str):
@@ -211,6 +241,19 @@ class Var(Expr):
     def assign(self, value: IntConst):
         ENV[self.name] = value
 
+    def lvalue(self, context: Context) -> str:
+        """Return the label that the compiler will use for this variable"""
+        return context.get_var_symbol(self.name)
+    
+    def gen(self, context: Context, target: str):
+        """Generate code into the context object.
+        Result of expression evaluation will be
+        left in target register.
+        """
+        label = context.get_var_symbol(self.name)
+        context.add_line(f"    LOAD {target},{label}")
+        return
+
 
 class Assign(Expr):
     """Assignment:  x = E represented as Assign(x, E)"""
@@ -230,6 +273,12 @@ class Assign(Expr):
         r_val = self.right.eval()
         self.left.assign(r_val)
         return r_val
+    
+    def gen(self, context: Context, target: str):
+        """Store value of expression into variable"""
+        loc = self.left.lvalue(context)
+        self.right.gen(context, target)
+        context.add_line(f"   STORE  {target},{loc}")
 
 
 class Control(Expr):
@@ -266,7 +315,12 @@ class Seq(Control):
         """Just evaluate in order"""
         discard = self.left.eval()
         return self.right.eval()
-
+    
+    def gen(self, context: Context, target:str):
+        """Generating code for the left and right expressions"""
+        temp_target = "r0" #as a temp register
+        self.left.gen(context, temp_target) #since we discard the left expression value
+        self.right.gen(context, target)
 
 class Print(Control):
     """Print a value.  Returns the value."""
@@ -285,6 +339,11 @@ class Print(Control):
         result = self.expr.eval()
         print(f"Quack!: {result.value}")
         return result
+    
+    def gen(self, context: Context, target: str):
+        """We print by storing to the memory-mapped address 511"""
+        self.expr.gen(context, target)
+        context.add_line(f"   STORE  {target},r0,r0[511]")
 
 
 class Read(Expr):

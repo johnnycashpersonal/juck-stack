@@ -60,7 +60,7 @@ should be stored at this location, rather than
 a Duck Machine instruction.
 
 """
-
+#imports
 import io
 
 import context
@@ -72,6 +72,8 @@ import sys
 import re
 
 import logging
+
+#basic logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -213,9 +215,6 @@ ASM_JUMP_PAT = re.compile(r"""
     \s*$
     """, re.VERBOSE)
 
-
-
-
 # Defaults for values that ASM_FULL_PAT makes optional
 INSTR_DEFAULTS = [ ('predicate', 'ALWAYS'), ('offset', '0') ]
 
@@ -250,36 +249,33 @@ ASM_DATA_PAT = re.compile(r"""
 PATTERNS = [(ASM_FULL_PAT, AsmSrcKind.FULL),
             (ASM_DATA_PAT, AsmSrcKind.DATA),
             (ASM_COMMENT_PAT, AsmSrcKind.COMMENT),
-            (ASM_MEMOP_PAT, AsmSrcKind.MEMOP),
-            (ASM_JUMP_PAT, AsmSrcKind.JUMP)]
+            (ASM_MEMOP_PAT, AsmSrcKind.MEMOP), #Added MemOp pattern - Operation Concerning Memory in form OpCode, Directory, Reg1, Reg2[distraction]
+            (ASM_JUMP_PAT, AsmSrcKind.JUMP)] #Added Jump Pattern - Moving data between registers
 
 def parse_line(line: str) -> dict:
-    """Parse one line of assembly code.
-    Returns a dict containing the matched fields,
-    some of which may be empty.  Raises SyntaxError
-    if the line does not match assembly language
-    syntax. Sets the 'kind' field to indicate
-    which of the patterns was matched.
+    """Parse one line of assembly code. Returns a dict containing the matched fields,
+    some of which may be empty.  Raises SyntaxError if the line does not match assembly language
+    syntax. Sets the 'kind' field to indicate which of the patterns was matched.
     """
-    log.debug(f"\nParsing assembler line: '{line}'")
+    log.debug(f"\nParsing assembler line: '{line}'") 
+
     # Try each kind of pattern
     for pattern, kind in PATTERNS:
         match = pattern.fullmatch(line)
         if match:
             fields = match.groupdict()
             fields["kind"] = kind
+
             log.debug(f"Extracted fields {fields}")
-    
             return fields
         
     raise SyntaxError(f"Assembler syntax error in {line}")
 
 def value_parse(int_literal: str) -> int:
-    """Parse an integer literal that could look like
-    42 or like 0x2a
-    """
-    if int_literal.startswith("0x"):
-        return int(int_literal, 16)
+    """Parse an integer literal that could look like 42 or like 0x2a"""
+    
+    if int_literal.startswith("0x"): #determining base 10 or base 16
+        return int(int_literal, 16) 
     else:
         return int(int_literal, 10)
 
@@ -289,17 +285,17 @@ def to_flag(m: str) -> CondFlag:
     like Z or NEVER or might be a combination
     like PZ.
     """
-    if m in [ flag.name for flag in CondFlag ]:
+    if m in [ flag.name for flag in CondFlag ]: #This is logic from cpu.py
         return CondFlag[m]
     composite = CondFlag.NEVER
+    
     for bitname in m:
         composite = composite | CondFlag[bitname]
     return composite
 
 def fix_optional_fields(fields: dict[str, str]):
-    """Fill in values of optional fields label,
-    predicate, and comment, adding the punctuation
-    they require.
+    """Fill in values of optional fields label, predicate, and comment, 
+    adding the punctuation they require.
     """
 
     if fields["label"] is None:
@@ -317,17 +313,15 @@ def fix_optional_fields(fields: dict[str, str]):
     else: 
         fields["comment"] = fields["comment"]
     
-    return fields
+    return fields #now fields works the way it should for optional fields. The spacing works as a "Valid, but non-valued"
 
-def resolve(lines: list[str]) -> dict[str, int]:
-    """
-    Build table associating labels in the source code 
-    with addresses. 
-    """
-    labels: dict[str, int] = {}
+def resolve(lines: list[str]) -> dict[str, int]: 
+    """Build table associating labels in the source code with addresses."""
+
+    labels: dict[str, int] = {} 
     address: int = 0  # Start address at 0
 
-    for lnum, line in enumerate(lines):
+    for lnum, line in enumerate(lines): #more pythonic than len[lnum[lines]] imo
         line = line.rstrip()  # Remove trailing spaces
         log.debug(f"Processing line {lnum}: {line}")
 
@@ -362,22 +356,20 @@ def mem_addr(fields: dict, labels: dict, address: int) -> int:
     - int: The PC-relative memory address.
     """
     # Extract the label reference from the fields
-    ref = fields["labelref"]
+    ref = fields["labelref"] 
 
     # Find the absolute memory address using the label reference
-    mem_addr = labels[ref]
+    mem_addr = labels[ref] 
 
-    # Compute the PC-relative memory address
+    # Compute the PC-relative memory address 
     pc_relative = mem_addr - address
 
-    return pc_relative
+    return pc_relative #Passes tests but I hope this actually works. I can only pray, cause I'm starting compiler soon and then I'll know fs
 
 def transform (lines: list[str]) -> list[str]:
     """
-    Transform some assembly language lines, leaving others
-    unchanged. 
+    Transform some assembly language lines, leaving others unchanged. 
     Initial version:  No changes to any source line. 
-    
     Planned version: 
        again:   STORE r1,x
                 SUB   r1,r0,r0[1]
@@ -460,7 +452,6 @@ def transform (lines: list[str]) -> list[str]:
             print("Too many errors; abandoning", file=sys.stderr)
             sys.exit(1)
         
-
     return transformed
 
 def cli() -> object:
@@ -480,8 +471,6 @@ def main(sourcefile: io.IOBase, objfile: io.IOBase):
     """"Assemble a Duck Machine program"""
     lines = sourcefile.readlines()
     object_code = transform(lines)
-    labels = resolve(lines)
-    transformed_code = transform(lines, labels)
     log.debug(f"Object code: \n{object_code}")
     for word in object_code:
         log.debug(f"Instruction word {word}")
@@ -490,4 +479,3 @@ def main(sourcefile: io.IOBase, objfile: io.IOBase):
 if __name__ == "__main__":
     args = cli()
     main(args.sourcefile, args.objfile)
-

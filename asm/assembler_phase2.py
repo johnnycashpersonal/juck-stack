@@ -58,10 +58,10 @@ import re
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 # Configuration constants
-ERROR_LIMIT = 5    # Abandon assembly if we exceed this
+ERROR_LIMIT = 15    # Abandon assembly if we exceed this
 
 # Exceptions raised by this module
 class SyntaxError(Exception):
@@ -186,113 +186,124 @@ PATTERNS = [(ASM_FULL_PAT, AsmSrcKind.FULL),
             ]
 
 def parse_line(line: str) -> dict:
-    """Parse one line of assembly code.
-    Returns a dict containing the matched fields,
-    some of which may be empty.  Raises SyntaxError
-    if the line does not match assembly language
-    syntax. Sets the 'kind' field to indicate
-    which of the patterns was matched.
-    """
-    log.debug(f"\nParsing assembler line: '{line}'")
-    # Try each kind of pattern
+    """Parse one line of assembly code."""
+    log.debug(f"Starting to parse assembler line: '{line.strip()}'")
+    
     for pattern, kind in PATTERNS:
         match = pattern.fullmatch(line)
         if match:
             fields = match.groupdict()
             fields["kind"] = kind
-            log.debug(f"Extracted fields {fields}")
+          #  log.debug(f"Successfully parsed line with kind '{kind}'. Extracted fields: {fields}")
             return fields
-    raise SyntaxError(f"Assembler syntax error in {line}")
-
+    
+  #  log.error(f"Failed to parse line: '{line.strip()}'. Syntax does not match any known patterns.")
+    raise SyntaxError(f"Assembler syntax error in {line.strip()}")
 
 def fill_defaults(fields: dict) -> None:
-    """Fill in default values for optional fields of instruction"""
+    """Fill in default values for optional fields of instruction."""
+   # log.debug(f"Filling default values for fields: {fields}")
     for key, value in INSTR_DEFAULTS:
         if fields[key] == None:
             fields[key] = value
-
+            log.debug(f"Filled default value for {key}: {value}")
 
 def value_parse(int_literal: str) -> int:
-    """Parse an integer literal that could look like
-    42 or like 0x2a
-    """
+    """Parse an integer literal that could look like 42 or like 0x2a."""
     if int_literal.startswith("0x"):
-        return int(int_literal, 16)
+        value = int(int_literal, 16)
+      #  log.debug(f"Integer literal is in hexadecimal. Parsed value: {value}")
+        return value
     else:
-        return int(int_literal, 10)
-
+        value = int(int_literal, 10)
+       # log.debug(f"Integer literal is in decimal. Parsed value: {value}")
+        return value
 
 def to_flag(m: str) -> CondFlag:
-    """Making a condition code from a mnemonic
-    that might be one of the existing codes
-    like Z or NEVER or might be a combination
-    like PZ.
-    """
-    if m in [ flag.name for flag in CondFlag ]:
+    """Making a condition code from a mnemonic."""
+    # Check if the mnemonic directly matches a predefined condition flag
+    if m in CondFlag.__members__:
+      #  log.debug(f"Mnemonic matches a predefined condition flag.")
         return CondFlag[m]
+
+    # Handle composite condition flags
     composite = CondFlag.NEVER
     for bitname in m:
-        composite = composite | CondFlag[bitname]
+      #  log.debug(f"Processing bitname: {bitname}")  # Log each bitname being processed
+
+        if bitname in CondFlag.__members__:
+            composite = composite | CondFlag[bitname]
+        else:
+            raise KeyError(f"Invalid bitname in mnemonic: {bitname}")
+        
+   # log.debug(f"Constructed composite condition flag: {composite}")
     return composite
 
 
-def instruction_from_dict(d: dict) -> Instruction:
-    """Use fields of d to create an Instruction object.
-    Raises key_error if a needed field is missing or
-    misspelled (e.g., reg10 instead of r10)
-    """
-    opcode = OpCode[d["opcode"]]
-    pred = to_flag(d["predicate"])
-    target = NAMED_REGS[d["target"]]
-    src1 = NAMED_REGS[d["src1"]]
-    src2 = NAMED_REGS[d["src2"]]
-    offset = int(d["offset"])
-    return Instruction(opcode, pred, target, src1, src2, offset)
 
+def instruction_from_dict(d: dict) -> Instruction:
+    """Use fields of d to create an Instruction object."""
+    log.debug(f"Constructing instruction from fields: {d}")
+    try:
+        opcode = OpCode[d["opcode"]]
+        pred = to_flag(d["predicate"])
+        target = NAMED_REGS[d["target"]]
+        src1 = NAMED_REGS[d["src1"]]
+        src2 = NAMED_REGS[d["src2"]]
+        offset = int(d["offset"])
+        
+       # log.debug(f"Constructed instruction with opcode: {opcode}, predicate: {pred}, target: {target}, src1: {src1}, src2: {src2}, offset: {offset}")
+        return Instruction(opcode, pred, target, src1, src2, offset)
+    except KeyError as e:
+        log.error(f"KeyError: Missing or misspelled field in dictionary: {e}")
+        raise
 
 def assemble(lines: list[str]) -> list[int]:
     """
-    Simple one-pass translation of assembly language
-    source code into instructions.  Empty lines and lines
-    with only labels and comments are skipped.
-    Handles *only* numerical offsets, not symbolic labels.
-    For example:
-        STORE   r1,r0,r15[8]    # OK, store value of r1 at location pc+8
-        ADD/Z   r15,r0,r0[-3]   # OK, jump 3 steps back if zero is in condition code
-    but not
-        STORE   r1,variable     # cannot use symbolic address of variable
-        JUMP/Z  again           # cannot use pseudo-instruction JUMP or symbolic label 'again'
+    Simple one-pass translation of assembly language source code into instructions.
     """
     error_count = 0
-    instructions = [ ]
-    for lnum in range(len(lines)):
-        line = lines[lnum]
-        log.debug(f"Processing line {lnum}: {line}")
-        try: 
+    instructions = []
+
+    for lnum, line in enumerate(lines):
+      #  log.debug(f"Processing line {lnum}: {line.strip()}")
+        
+        try:
             fields = parse_line(line)
             if fields["kind"] == AsmSrcKind.FULL:
-                log.debug("Constructing instruction")
+               # log.debug("Constructing FULL instruction")
                 fill_defaults(fields)
                 instr = instruction_from_dict(fields)
                 word = instr.encode()
                 instructions.append(word)
+                log.debug(f"FULL instruction encoded: {word}")
+
             elif fields["kind"] == AsmSrcKind.DATA:
+             #   log.debug("Constructing DATA instruction")
                 word = value_parse(fields["value"])
                 instructions.append(word)
+                log.debug(f"DATA instruction encoded: {word}")
+
             else:
-                log.debug(f"No instruction on line {lnum}: {line}")
+                log.debug(f"No instruction on line {lnum}. Skipping.")
+
         except SyntaxError as e:
             error_count += 1
-            print(f"Syntax error in line {lnum}: {line}", file=sys.stderr)
+            log.error(f"Syntax error in line {lnum}: {e}")
+        
         except KeyError as e:
             error_count += 1
-            print(f"Unknown word in line {lnum}: {e}", file=sys.stderr)
+            log.error(f"Unknown word in line {lnum}: {e}")
+
         except Exception as e:
             error_count += 1
-            print(f"Exception encountered in line {lnum}: {e}", file=sys.stderr)
+            log.error(f"Unexpected exception in line {lnum}: {e}")
+
         if error_count > ERROR_LIMIT:
-            print("Too many errors; abandoning", file=sys.stderr)
+            log.critical("Too many errors; abandoning assembly.")
             sys.exit(1)
+
+    log.debug(f"Assembly complete. {len(instructions)} instructions generated.")
     return instructions
 
 def cli() -> object:
@@ -312,7 +323,7 @@ def main(sourcefile: io.IOBase, objfile: io.IOBase):
     """"Assemble a Duck Machine program"""
     lines = sourcefile.readlines()
     object_code = assemble(lines)
-    log.debug(f"Object code: \n{object_code}")
+  #  log.debug(f"Object code: \n{object_code}")
     for word in object_code:
         log.debug(f"Instruction word {word}")
         print(word,file=objfile)

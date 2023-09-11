@@ -18,7 +18,7 @@ import io
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 
 def cli() -> object:
@@ -75,7 +75,6 @@ def main(objfile: io.IOBase, display=False, single_step=False):
     print("Halted")
     if display:
       input("Press enter to end")
-
 
 if __name__ == "__main__":
     args = cli()

@@ -2,6 +2,8 @@ import context
 from cpu.cpu import *
 import unittest
 import os
+from cpu.register import Register, ZeroRegister
+from cpu.memory import Memory
 
 class TestALU(unittest.TestCase):
     """Simple smoke test of each ALU op"""
@@ -32,6 +34,24 @@ class TestALU(unittest.TestCase):
         self.assertEqual(alu.exec(OpCode.LOAD, 12, 13), (25, CondFlag.P))
         self.assertEqual(alu.exec(OpCode.STORE, 27, 13), (40, CondFlag.P))
         self.assertEqual(alu.exec(OpCode.HALT, 99, 98), (0, CondFlag.Z))
+   
+    def test_register_initialization(self):
+    # Initialize CPU and Memory
+        memory = Memory()
+        cpu = CPU(memory)
+        
+        # Check that R0 is a ZeroRegister and always holds zero
+        assert isinstance(cpu.registers[0], ZeroRegister), "R0 must be a ZeroRegister"
+        assert Register.get(cpu.registers[0]) == 0, "R0 must be zero"
+        
+        # Check that R1 to R14 are general-purpose registers and hold zero initially
+        for i in range(1, 15):
+            assert isinstance(cpu.registers[i], Register), f"R{i} must be a general-purpose Register"
+            assert Register.get(cpu.registers[i]) == 0, f"R{i} should be initialized to 0"
+        
+        # Check that R15 (Program Counter) is a general-purpose register and holds zero initially
+        assert isinstance(cpu.registers[15], Register), "R15 must be a general-purpose Register"
+        assert Register.get(cpu.registers[15]) == 0, "R15 (Program Counter) should be initialized to 0"
 
 if __name__ == "__main__":
     print(os.getcwd())

@@ -62,6 +62,57 @@ class Test_Signed_Insert(unittest.TestCase):
         unpacked = bitfield.extract_signed(packed)
         self.assertEqual(unpacked, -1)
 
+import unittest
+from instruction_set.bitfield import BitField
+
+class TestExtremeWordValues(unittest.TestCase):
+    
+    def test_max_min_word(self):
+        bf = BitField(0, 31)
+        self.assertEqual(bf.extract(0xFFFFFFFF), 0xFFFFFFFF)  # All bits set
+        self.assertEqual(bf.extract(0x80000000), 0x80000000)  # Only the sign bit set
+        self.assertEqual(bf.extract(0x7FFFFFFF), 0x7FFFFFFF)  # All but the sign bit set
+
+class TestInvalidInput(unittest.TestCase):
+    
+    def test_negative_from_bit(self):
+        with self.assertRaises(AssertionError):
+            BitField(-1, 5)
+            
+    def test_negative_to_bit(self):
+        with self.assertRaises(AssertionError):
+            BitField(1, -5)
+            
+    def test_from_greater_than_to(self):
+        with self.assertRaises(AssertionError):
+            BitField(10, 5)
+            
+class TestExtractAllBits(unittest.TestCase):
+    
+    def test_extract_all(self):
+        bf = BitField(0, 31)
+        self.assertEqual(bf.extract(0x12345678), 0x12345678)
+
+class TestInsertAllBits(unittest.TestCase):
+    
+    def test_insert_all(self):
+        bf = BitField(0, 31)
+        self.assertEqual(bf.insert(0x12345678, 0xFFFFFFFF), 0x12345678)
+
+class TestSignExtensionEdgeCases(unittest.TestCase):
+    
+    def test_min_max_negative(self):
+        self.assertEqual(BitField.sign_extend(0b11111111, 8), -1)
+        self.assertEqual(BitField.sign_extend(0b10000000, 8), -128)
+
+    def test_min_max_positive(self):
+        self.assertEqual(BitField.sign_extend(0b00000001, 8), 1)
+        self.assertEqual(BitField.sign_extend(0b01111111, 8), 127)
+
+if __name__ == '__main__':
+    unittest.main()
+
+
 if __name__ == "__main__":
     print(os.getcwd())
     unittest.main()

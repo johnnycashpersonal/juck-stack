@@ -19,7 +19,7 @@ import sys
 import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 
 def cli() -> object:
@@ -36,26 +36,33 @@ def cli() -> object:
 
 def main(sourcefile: io.FileIO, objfile: io.IOBase):
     context = codegen_context.Context()
-    context.add_line("# Lovingly crafted by the robots of CIS 211")
+    context.add_line("# with love, from JMo <3")
     context.add_line(f"# {datetime.datetime.now()} from {sourcefile.name}")
     context.add_line("#")
     try:
         exp = parse(sourcefile)
+        
         log.debug(f"Parsed to: {exp}")
+        
         work_register = context.allocate_register()
         exp.gen(context, work_register)
         context.free_register(work_register)
         context.add_line("\tHALT  r0,r0,r0")
         assm = context.get_lines()
+        
         log.debug(f"assm = {assm}")
+        
         for line in assm:
             print(line, file=objfile)
         log.info("#Compilation complete")
+    
     except InputError as e:
         log.warning("Syntax error, bailing")
         log.warning(e)
+    
     except LexicalError as e:
         log.warning("Lexical error, bailing")
+    
     except Exception as e:
         log.warning("Failed!")
         raise e

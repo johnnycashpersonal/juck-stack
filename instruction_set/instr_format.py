@@ -14,7 +14,7 @@ See docs/duck_machine.md for details.
 """
 
 import context #search from proj root
-from instruction_set.bitfield import BitField
+from instruction_set.bitfield import *
 from enum import Enum, Flag
 
 #The field bit positions
@@ -48,12 +48,12 @@ class CondFlag(Flag):
     of the condition code register are the same, so we can 
     logically and them to predicate an instruction. 
     """
-    M =1  # Minus (negative)
-    Z =2  # Zero
-    P =4  # Positive
-    V =8  # Overflow (arithmetic error, e.g., divide by zero)
-    NEVER =0
-    ALWAYS =M|Z|P|V
+    M = 1  # Minus (negative)
+    Z = 2  # Zero
+    P = 4  # Positive
+    V = 8  # Overflow (arithmetic error, e.g., divide by zero)
+    NEVER = 0
+    ALWAYS = M | Z | P | V 
 
     """Flag	 Decimal value	4-bit binary
         M	   1 = 2^0	     0001
@@ -115,7 +115,7 @@ class Instruction(object):
         """Assemble an instruction from its fields. """
 
         self.op = op
-        self.cond =cond
+        self.cond = cond
         self.reg_target = reg_target
         self.reg_src1 = reg_src1
         self.reg_src2 = reg_src2
@@ -128,58 +128,55 @@ class Instruction(object):
         if self.cond is CondFlag.ALWAYS:
             pred = ""
         else:
-            pred = f'/{self.cond}'
+            pred = f"/{self.cond}"
 
-        return (f"{self.op.name}{pred}{'   '}r{self.reg_target},r{self.reg_src1},r{self.reg_src2}[{self.offset}]")
+        return (f"{self.op.name}{pred}   "
+                +  f"r{self.reg_target},r{self.reg_src1},r{self.reg_src2}[{self.offset}]")
+    
+    def encode(self) -> int:
+
+        #init the empty word
+        word = 0
+
+        #insert each field into the word
+        word = op_field.insert(self.op.value, word)
+        word = cond_field.insert(self.cond.value, word)
+        word = reg_target_field.insert(self.reg_target, word)
+        word = reg_src1_field.insert(self.reg_src1, word)
+        word = reg_src2_field.insert(self.reg_src2, word)
+        word = offset_field.insert(self.offset, word)  # Assuming you have a method to insert signed integers
+
+        return word
 
 
 def decode(word: int) -> Instruction:
     """Decode a memory word (32 bit int) into a new Instruction"""
-    
+
     # Extract each value from the word
     reserved_value = reserved.extract(word)
+
+    # Convert integer to OpCode object
     op_value = OpCode(op_field.extract(word))
+
+    # Convert integer to CondFlag object
     cond_value = CondFlag(cond_field.extract(word))
+
     reg_target_value = reg_target_field.extract(word)
     reg_src1_value = reg_src1_field.extract(word)
     reg_src2_value = reg_src2_field.extract(word)
+
+    # Use extract_signed method to handle signed integers
     offset_value = offset_field.extract_signed(word)
 
     # Create an Instruction object using the extracted values
     instruction = Instruction(
-        reserved=reserved_value,
         op=op_value,
         cond=cond_value,
         reg_target=reg_target_value,
         reg_src1=reg_src1_value,
         reg_src2=reg_src2_value,
-        offset=offset_value
+        offset=offset_value,
+        reserved=reserved_value
     )
     
     return instruction
-
-def encode(self) -> int:
-
-    #init the empty word
-    word = 0
-
-    #insert each field into the word
-    word = op_field.insert(self.op.value, word)
-    word = cond_field.insert(self.cond.value, word)
-    word = reg_target_field.insert(self.reg_target, word)
-    word = reg_src1_field.insert(self.reg_src1, word)
-    word = reg_src2_field.insert(self.reg_src2, word)
-    word = offset_field.insert(self.offset, word)  # Assuming you have a method to insert signed integers
-
-    return word
-
-#Add method to instruction class
-Instruction.encode = encode
-
-
-
-
-    
-
-
-

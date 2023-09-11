@@ -10,7 +10,7 @@ in a separate document
 
 import context
 from compiler.lex import TokenStream, TokenCat
-import compiler.expr as expr
+import compiler.expr_orig as expr
 from typing import TextIO
 import io
 import traceback
